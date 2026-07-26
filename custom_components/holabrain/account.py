@@ -22,7 +22,7 @@ from .const import DOMAIN, MODE_COOPERATIVE, MODE_EXCLUSIVE
 from .coordinator import HolabrainCoordinator
 
 
-def account_device_info(entry_id: str, account: str) -> DeviceInfo:
+def account_device_info(entry_id: str) -> DeviceInfo:
     """The service device standing for the cloud account itself.
 
     Its entities describe the *connection*, so hanging them off an appliance would be a
@@ -30,7 +30,11 @@ def account_device_info(entry_id: str, account: str) -> DeviceInfo:
     """
     return DeviceInfo(
         identifiers={(DOMAIN, f"account_{entry_id}")},
-        name=account or "HolaBrain account",
+        # Deliberately not the account's e-mail address, which is what the config entry is
+        # titled with: Home Assistant builds entity ids from the device name, and
+        # "switch.name_example_com_exclusive_mode" would put the address in every automation,
+        # every log line and every screenshot attached to a bug report.
+        name="HolaBrain",
         manufacturer="HolaBrain",
         entry_type=DeviceEntryType.SERVICE,
     )
@@ -45,9 +49,7 @@ class HolabrainAccountEntity(CoordinatorEntity[HolabrainCoordinator]):
         super().__init__(coordinator)
         entry = coordinator.config_entry
         self._attr_unique_id = f"{entry.entry_id}_{uid}"
-        self._attr_device_info = account_device_info(
-            entry.entry_id, entry.data.get("account", "")
-        )
+        self._attr_device_info = account_device_info(entry.entry_id)
 
     @property
     def available(self) -> bool:

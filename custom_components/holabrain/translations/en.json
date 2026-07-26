@@ -280,6 +280,18 @@
       },
       "washes_since_clean": {
         "name": "Washes since drum clean"
+      },
+      "energy_month": {
+        "name": "Electricity this month"
+      },
+      "energy_year": {
+        "name": "Electricity this year"
+      },
+      "water_month": {
+        "name": "Water this month"
+      },
+      "water_year": {
+        "name": "Water this year"
       }
     },
     "binary_sensor": {

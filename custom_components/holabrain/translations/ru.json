@@ -280,6 +280,18 @@
       },
       "washes_since_clean": {
         "name": "Стирок с последней чистки"
+      },
+      "energy_month": {
+        "name": "Электричество за месяц"
+      },
+      "energy_year": {
+        "name": "Электричество за год"
+      },
+      "water_month": {
+        "name": "Вода за месяц"
+      },
+      "water_year": {
+        "name": "Вода за год"
       }
     },
     "binary_sensor": {

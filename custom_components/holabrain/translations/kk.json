@@ -280,6 +280,18 @@
       },
       "washes_since_clean": {
         "name": "Соңғы тазалаудан кейінгі жуу саны"
+      },
+      "energy_month": {
+        "name": "Айлық электр"
+      },
+      "energy_year": {
+        "name": "Жылдық электр"
+      },
+      "water_month": {
+        "name": "Айлық су"
+      },
+      "water_year": {
+        "name": "Жылдық су"
       }
     },
     "binary_sensor": {

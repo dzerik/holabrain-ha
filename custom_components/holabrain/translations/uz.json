@@ -280,6 +280,18 @@
       },
       "washes_since_clean": {
         "name": "Oxirgi tozalashdan beri yuvishlar"
+      },
+      "energy_month": {
+        "name": "Oylik elektr"
+      },
+      "energy_year": {
+        "name": "Yillik elektr"
+      },
+      "water_month": {
+        "name": "Oylik suv"
+      },
+      "water_year": {
+        "name": "Yillik suv"
       }
     },
     "binary_sensor": {
