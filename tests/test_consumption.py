@@ -114,3 +114,31 @@ async def test_a_lamp_gets_no_consumption_sensors(
         if "lamp" in state.entity_id and ("energy" in state.entity_id or "water" in state.entity_id)
     ]
     assert lamp_consumption == []
+
+
+async def test_a_push_frame_can_still_bring_the_figures_in(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud, push, config_entry, entity_id_of
+) -> None:
+    """The gap cooperative mode opens, and why the start-up fetch hangs off push too.
+
+    Cooperative mode schedules no further polls once it has data. So if the start-up fetch
+    lost the account race, the figures would stay blank for ever — the only way out being a
+    button the user has no reason to suspect they need. Any later proof that the account is
+    reachable, including a push frame, is enough to try once more.
+    """
+    from custom_components.holabrain.const import CONF_MODE, MODE_COOPERATIVE
+
+    hass.config_entries.async_update_entry(
+        config_entry, options={**config_entry.options, CONF_MODE: MODE_COOPERATIVE}
+    )
+    assert await setup_integration()
+    energy = entity_id_of("sensor", f"{DISHWASHER_CODE}_energy_month")
+    assert hass.states.get(energy).state == "unknown"
+
+    # The cloud starts answering, and a frame arrives from the appliance.
+    cloud.set_consumption(DISHWASHER_CODE, "month", energy=16.91, water=232.0)
+    config_entry.runtime_data.coordinator._consumption_pending = True
+    await push(DEV_TOPIC, {"status": {"washingState": "3"}})
+    await hass.async_block_till_done()
+
+    assert hass.states.get(energy).state == "16.91"

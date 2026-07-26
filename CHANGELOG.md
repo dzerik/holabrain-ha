@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-07-27
+
+### Fixed
+
+- The consumption figures could stay blank for ever. They are fetched once when the account
+  first answers; if that attempt lost the race for the session, cooperative mode — which
+  schedules no further polls once it has data — never tried again, and the only way out was
+  a button the user had no reason to suspect they needed. Any later proof the account is
+  reachable, a push frame included, now triggers the retry.
+- Consumption sensors had no names of their own and fell back to "Electricity", "Electricity
+  2" and so on. Named in all five languages.
+- The account device was named after the account's e-mail address, and Home Assistant builds
+  entity ids from device names — so the address ended up in every automation referencing the
+  mode switch, every log line and every screenshot attached to a bug report.
+
 ## [0.12.0] - 2026-07-27
 
 ### Added

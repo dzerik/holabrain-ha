@@ -286,6 +286,19 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         """The last consumption report fetched for a device, if any."""
         return self._consumption.get((thing_code, period))
 
+    @callback
+    def _async_fetch_consumption_once(self) -> None:
+        """Take the consumption figures the first time the account answers at all.
+
+        Scheduled rather than awaited: a slow statistics reply must not hold up the status
+        the platforms are waiting for. Both modes allow this one fetch — starting the
+        integration is the user asking for its data.
+        """
+        if not self._consumption_pending:
+            return
+        self._consumption_pending = False
+        self.hass.async_create_task(self.async_fetch_consumption())
+
     async def async_fetch_consumption(self) -> None:
         """Refresh the consumption reports for every metering appliance.
 
@@ -418,13 +431,7 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             )
         else:
             self._failed_polls = 0
-            if self._consumption_pending:
-                # Once, off the back of a poll that worked: by now the account answers and
-                # the appliance inventory is settled. Scheduled rather than awaited so a
-                # slow statistics reply cannot hold up the status the platforms are waiting
-                # for.
-                self._consumption_pending = False
-                self.hass.async_create_task(self.async_fetch_consumption())
+            self._async_fetch_consumption_once()
         self._absorb_status_fields(states)
         return states
 
@@ -743,6 +750,10 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             self._absorb_status_fields({thing_code: updated})
             self.async_set_updated_data({**self.data, thing_code: updated})
             self._note_snapshot_trigger(thing_code, current, updated)
+        # The start-up consumption fetch hangs off "the account answered at least once",
+        # and push counts. Without this a first poll that lost the session would leave the
+        # figures blank for ever in cooperative mode, which never schedules another poll.
+        self._async_fetch_consumption_once()
 
     def _note_snapshot_trigger(
         self, thing_code: str, before: DeviceState, after: DeviceState
