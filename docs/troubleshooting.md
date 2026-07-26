@@ -155,6 +155,26 @@ found there.
 For any of these, the decisive evidence is a screenshot of the entity next to the appliance's
 own display, plus diagnostics taken **mid-cycle** rather than idle.
 
+### The lifetime counters are unknown or stop moving
+
+Total water, total energy and total cycles are diagnostic entities and **disabled by
+default** — enable them on the device page first (see
+[Some entities are greyed out](#some-entities-are-greyed-out--disabled)).
+
+Once enabled they update at the end of each wash, not continuously. That is deliberate:
+those counters exist only in the cloud's full status snapshot, while the real-time push
+channel carries a shorter frame without them, so fetching one costs an account request —
+and account requests are what sign the mobile app out. Since the appliance only books the
+totals when a cycle settles, the snapshot is taken exactly then.
+
+Two consequences worth knowing:
+
+- On a freshly paired appliance the counters read `unknown` until the first wash finishes.
+  The cloud starts a new record with the binding; the old totals belonged to the previous
+  one and are not carried over.
+- If the snapshot request collides with the mobile app holding the session, it is skipped
+  rather than retried, and the counters catch up after the next wash.
+
 ---
 
 ## Commands that do nothing

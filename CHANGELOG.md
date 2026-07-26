@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-26
+
+### Fixed
+
+- Lifetime counters (total water, total energy, cycles) no longer freeze. They appear only
+  in the cloud's full status snapshot — push frames carry a shorter subset that leaves them
+  out — so with the push channel healthy the integration had stopped asking for the one
+  thing push cannot deliver. A snapshot is now fetched when a cycle settles, which is the
+  only moment those counters move: one request per wash rather than steady polling.
+
 ## [0.11.0] - 2026-07-26
 
 First public release.

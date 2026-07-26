@@ -124,6 +124,7 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         self._setup_done = False
         self._failed_polls = 0
         self._unsupported: set[str] = set()
+        self._snapshot_due = False
 
     @property
     def client(self) -> DollinClient:
@@ -225,8 +226,11 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         certificate and is unaffected by that, so while it is delivering, the poll is
         skipped entirely and the integration stops competing for the account.
         """
-        if self._push_is_healthy():
+        if self._push_is_healthy() and not self._snapshot_due:
             return dict(self.data)
+        # One snapshot settles every pending trigger; clear it before the request so a
+        # failure does not leave the flag latched into a poll on every tick.
+        self._snapshot_due = False
 
         states: dict[str, DeviceState] = dict(self.data or {})
         # Drop states of appliances that left the account so stale values cannot linger.
@@ -595,6 +599,24 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         if updated is not current:
             self._absorb_status_fields({thing_code: updated})
             self.async_set_updated_data({**self.data, thing_code: updated})
+            self._note_snapshot_trigger(thing_code, current, updated)
+
+    def _note_snapshot_trigger(
+        self, thing_code: str, before: DeviceState, after: DeviceState
+    ) -> None:
+        """Ask for a full snapshot if this frame says a cycle just finished.
+
+        The counters the snapshot carries are written by the appliance at that moment, so
+        this is the one instant where polling buys something the push channel cannot give.
+        """
+        device = self.devices.get(thing_code)
+        category = get_category(device.device_type) if device is not None else None
+        trigger = getattr(category, "snapshot_after", None)
+        if trigger is None:
+            return
+        if trigger.fires(before.attributes.get(trigger.key), after.attributes.get(trigger.key)):
+            self._snapshot_due = True
+            self.hass.async_create_task(self.async_request_refresh())
 
     async def async_shutdown(self) -> None:
         """Tear down the push connection and the revalidation timer."""

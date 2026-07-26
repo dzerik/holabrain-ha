@@ -115,8 +115,82 @@ async def test_state_still_tracks_the_appliance_without_polling(
     assert hass.states.get(stage).state == "drying"
 
     before = cloud.calls(FakeCloud.QUERY)
+    mqtt_spy.last.deliver(DEV_TOPIC, {"status": {"washingState": "3"}})
+    await hass.async_block_till_done()
+
+    assert hass.states.get(stage).state == "rinse"
+    assert cloud.calls(FakeCloud.QUERY) == before  # updated without touching the account
+
+
+# --- lifetime counters -------------------------------------------------------------------
+#
+# Push frames are a subset of the appliance's state: they leave out the lifetime water,
+# energy and runtime counters, which appear only in the HTTP snapshot. Skipping the poll
+# forever would therefore freeze those counters at whatever the first snapshot said. They
+# move only when a cycle ends, so that is the one moment worth spending a request on.
+
+
+async def test_a_finished_cycle_fetches_the_counters_push_leaves_out(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud, mqtt_spy: MqttSpy, config_entry
+) -> None:
+    """After a wash ends the counters must reflect that wash, not the one before it."""
+    assert await setup_integration()
+    coordinator = config_entry.runtime_data.coordinator
+    assert coordinator.data[DISHWASHER_CODE].attributes["totalWaterVol"] == "2900"
+
+    # The appliance books the wash against its lifetime totals as the cycle settles.
+    cloud.states[DISHWASHER_CODE].update(
+        {"washingState": "5", "totalWaterVol": "2911", "totalElectricVol": "41058"}
+    )
+
+    before = cloud.calls(FakeCloud.QUERY)
     mqtt_spy.last.deliver(DEV_TOPIC, {"status": {"washingState": "5"}})
     await hass.async_block_till_done()
 
-    assert hass.states.get(stage).state == "finished"
-    assert cloud.calls(FakeCloud.QUERY) == before  # updated without touching the account
+    assert cloud.calls(FakeCloud.QUERY) > before
+    attributes = coordinator.data[DISHWASHER_CODE].attributes
+    assert attributes["totalWaterVol"] == "2911"
+    assert attributes["totalElectricVol"] == "41058"
+
+
+async def test_a_cycle_still_running_does_not_spend_a_request(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud, mqtt_spy: MqttSpy
+) -> None:
+    """The counters do not move mid-wash, so neither should the request budget.
+
+    Without this the trigger would fire on every stage change and reintroduce exactly the
+    polling the push-first design exists to avoid.
+    """
+    assert await setup_integration()
+    before = cloud.calls(FakeCloud.QUERY)
+
+    for stage in ("1", "2", "3", "4"):
+        mqtt_spy.last.deliver(DEV_TOPIC, {"status": {"washingState": stage}})
+        await hass.async_block_till_done()
+
+    assert cloud.calls(FakeCloud.QUERY) == before
+
+
+async def test_the_counter_snapshot_is_taken_once_per_cycle(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud, mqtt_spy: MqttSpy
+) -> None:
+    """One finished wash buys one snapshot — the request must not latch on."""
+    assert await setup_integration()
+    mqtt_spy.last.deliver(DEV_TOPIC, {"status": {"washingState": "4"}})
+    await hass.async_block_till_done()
+
+    before = cloud.calls(FakeCloud.QUERY)
+    # The snapshot agrees with the frame, as the cloud's does once the wash has settled.
+    cloud.states[DISHWASHER_CODE]["washingState"] = "5"
+    mqtt_spy.last.deliver(DEV_TOPIC, {"status": {"washingState": "5"}})
+    await hass.async_block_till_done()
+    spent = cloud.calls(FakeCloud.QUERY) - before
+    assert spent == 1
+
+    # Settling further — finished to idle — is the same cycle, not a new one.
+    cloud.states[DISHWASHER_CODE]["washingState"] = "0"
+    mqtt_spy.last.deliver(DEV_TOPIC, {"status": {"washingState": "0"}})
+    await hass.async_block_till_done()
+    await _poll(hass, times=3)
+
+    assert cloud.calls(FakeCloud.QUERY) == before + 1

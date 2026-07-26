@@ -229,6 +229,31 @@ class DishwasherConfig:
 
 
 @dataclass(frozen=True)
+class SnapshotTrigger:
+    """When a full status snapshot has to be fetched again.
+
+    The push channel does not carry everything the appliance knows: its frames are a
+    subset that leaves out the lifetime counters (water used, energy used, cycles run).
+    Those live only in the HTTP snapshot, which the push-first design deliberately stops
+    asking for — so left alone the counters would freeze at whatever the first snapshot
+    said, or stay unknown if it predated them.
+
+    They also only ever move when a cycle ends. Re-fetching exactly then keeps them
+    honest for the cost of one request per wash, instead of the steady polling that would
+    put Home Assistant back in competition with the mobile app for the account session.
+    """
+
+    key: str
+    settled_values: frozenset[str]
+
+    def fires(self, before: object, after: object) -> bool:
+        """True when ``key`` has just come to rest, i.e. a cycle finished."""
+        if before is None or after is None:
+            return False
+        return str(after) in self.settled_values and str(before) not in self.settled_values
+
+
+@dataclass(frozen=True)
 class CategorySpec:
     device_type: str
     category: str
@@ -244,6 +269,7 @@ class CategorySpec:
     selects: tuple[SelectSpec, ...] = ()
     numbers: tuple[NumberSpec, ...] = ()
     buttons: tuple[ButtonSpec, ...] = ()
+    snapshot_after: SnapshotTrigger | None = None
 
 
 # =========================================================================================
@@ -294,6 +320,9 @@ DISHWASHER = CategorySpec(
         extras=DISHWASHER_EXTRAS,
         zones=DISHWASHER_ZONES,
     ),
+    # "finished" and "idle" are the two states a wash settles into, and the lifetime
+    # counters are written at that moment — see SnapshotTrigger.
+    snapshot_after=SnapshotTrigger("washingState", frozenset({"0", "5"})),
     sensors=(
         SensorSpec("washingState", "wash_stage", device_class=SensorDeviceClass.ENUM,
                    value_map=_WASHING_STAGE),
