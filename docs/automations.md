@@ -329,14 +329,26 @@ device page if you want the count in the message.)*
 
 ### Track how much a cycle costs
 
-The lifetime totals are `total_increasing`, so the energy dashboard and utility meters accept
-them directly. Enable `sensor.dishwasher_total_energy` on the device page first, then:
+`sensor.dishwasher_energy_month` and `sensor.dishwasher_water_month` carry the cloud's own
+monthly totals in kWh and litres, with `device_class: energy` and `water`, so Home
+Assistant's energy and water dashboards accept them as they are — no template, no scaling.
+
+To follow a single cycle rather than the month, compare the daily figure before and after:
 
 ```yaml
-utility_meter:
-  dishwasher_energy_monthly:
-    source: sensor.dishwasher_total_energy
-    cycle: monthly
+automation:
+  - alias: Report what the wash cost
+    trigger:
+      - platform: state
+        entity_id: sensor.dishwasher_wash_stage
+        to: finished
+    action:
+      - delay: "00:02:00"        # give the cloud a moment to book the cycle
+      - service: notify.mobile_app
+        data:
+          message: >-
+            Wash finished: {{ states('sensor.dishwasher_energy_month') }} kWh and
+            {{ states('sensor.dishwasher_water_month') }} L used this month so far.
 ```
 
 ---

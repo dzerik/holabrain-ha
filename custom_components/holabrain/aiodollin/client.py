@@ -15,6 +15,7 @@ from .api.binding import BindingApi
 from .api.capabilities import CapabilityApi
 from .api.certificates import CertificateApi
 from .api.devices import DeviceApi
+from .api.statistics import StatisticsApi
 from .auth.manager import AuthManager
 from .auth.store import TokenStore
 from .const import DEFAULT_REGION, MQTT_CHANNELS, MQTT_TOPIC_TEMPLATE
@@ -34,6 +35,7 @@ class DollinClient:
         self.capabilities = CapabilityApi(auth, status_provider=self._async_status)
         self.certificates = CertificateApi(auth)
         self.binding = BindingApi(auth)
+        self.statistics = StatisticsApi(auth)
 
     async def _async_status(self, thing_code: str) -> dict[str, Any]:
         """Status snapshot used by the presence-based capability resolver."""

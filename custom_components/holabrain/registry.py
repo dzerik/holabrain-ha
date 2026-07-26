@@ -26,6 +26,7 @@ from homeassistant.const import (
 from .conditions import (
     NO_GATES,
     Block,
+    Cond,
     Gates,
     Is,
     StateIs,
@@ -38,8 +39,22 @@ TRANSFORM_REMAIN_MINUTES = "remain_minutes"  # remainTimeH*256 + remainTimeL
 TRANSFORM_SECONDS_MINUTES = "seconds_minutes"  # whole seconds -> minutes (rounded up)
 TRANSFORM_OVEN_STATUS = "oven_status"  # devstatus + preheat phase + reachability
 
+#: Categories that meter their own water and electricity. Creating consumption sensors
+#: for a lamp would produce readings that are permanently unknown.
+METERED_CATEGORIES = frozenset({"dishwasher", "washer"})
+
 # Blanking one of these would read as a counter reset to long-term statistics.
 _LIFETIME_TOTALS = (SensorStateClass.TOTAL, SensorStateClass.TOTAL_INCREASING)
+
+
+def _faulted(key: str, codes: Mapping[str, str]) -> Cond:
+    """``key`` reports one of the known fault codes.
+
+    Spelled as an explicit list rather than "not zero": the field is present on every frame
+    and an unmapped value would otherwise put the whole appliance into a fault state it is
+    not in. Unknown codes are still caught, by the ``problem`` binary sensor.
+    """
+    return Is(key, *(code for code in codes if code != "0"))
 
 
 @dataclass(frozen=True)
@@ -355,7 +370,7 @@ DISHWASHER_ZONES: dict[str, str] = {"upper": "1", "lower": "2", "both": "3"}
 # itself (0 off, 1/5 standby, 2 reserved, 3 working).
 DISHWASHER_STATES = (
     StateRule("power_off", Is("power", "0")),
-    StateRule("fault", Is("faultCode", *_FAULT_CODE.keys() - {"0"})),
+    StateRule("fault", _faulted("faultCode", _FAULT_CODE)),
     StateRule("standby", Is("power", "1", "5")),
     StateRule("delay", Is("power", "2")),
     StateRule("finished", Is("power", "3") & Is("washingState", "5")),
@@ -473,7 +488,15 @@ DISHWASHER = CategorySpec(
 # 0x13 — Ceiling lamp → native `light` platform (tunable white + scenes).
 # =========================================================================================
 
+# A lamp has no cycle: it is on or it is off, and the only reason to write the machine down
+# is so the rest of the integration can ask one question of every appliance.
+LAMP_STATES = (
+    StateRule("off", Is("power", "0")),
+    StateRule("on", Is("power", "1")),
+)
+
 LAMP = CategorySpec(
+    states=LAMP_STATES,
     device_type="0x13",
     category="light",
     primary_platform=Platform.LIGHT,
@@ -490,7 +513,17 @@ LAMP = CategorySpec(
 # Note: modelled from the cloud protocol; behaviour not yet verified on hardware.
 # =========================================================================================
 
+# Power says whether the appliance is alive; heatStatus says what the element is doing.
+# The vendor screen shows "Off" instead of the heating status whenever power is 0.
+WATER_HEATER_STATES = (
+    StateRule("power_off", Is("power", "0")),
+    StateRule("heating", Is("heatStatus", "1")),
+    StateRule("keep_warm", Is("heatStatus", "2")),
+    StateRule("standby", Is("heatStatus", "0")),
+)
+
 WATER_HEATER = CategorySpec(
+    states=WATER_HEATER_STATES,
     device_type="0xE2",
     category="water_heater",
     primary_platform=Platform.WATER_HEATER,
@@ -506,7 +539,8 @@ WATER_HEATER = CategorySpec(
     ),
     sensors=(
         SensorSpec("heatStatus", "heat_status", device_class=SensorDeviceClass.ENUM,
-                   value_map={"0": "standby", "1": "heating", "2": "keep_warm"}),
+                   value_map={"0": "standby", "1": "heating", "2": "keep_warm"},
+                   gates=Gates(meaningful_when=~StateIs("power_off"))),
     ),
 )
 
@@ -516,7 +550,15 @@ WATER_HEATER = CategorySpec(
 # Note: modelled from the cloud protocol; behaviour not yet verified on hardware.
 # =========================================================================================
 
+# The vendor plugin has no state table for the air conditioner either — its screen keys off
+# power and the mode independently, so this is the honest minimum rather than a guess.
+AIR_CONDITIONER_STATES = (
+    StateRule("off", Is("power", "0")),
+    StateRule("on", Is("power", "1")),
+)
+
 AIR_CONDITIONER = CategorySpec(
+    states=AIR_CONDITIONER_STATES,
     device_type="0xAC",
     category="air_conditioner",
     primary_platform=Platform.CLIMATE,
@@ -573,19 +615,47 @@ _OVEN_FAULT = {
 # Some models report a single packed status integer instead of the discrete flags below.
 _OVEN_SUMMARY = "transportStatusSummary1"
 
+# The oven keeps its whole run state in one field rather than splitting it across a power
+# flag and a run flag the way the wash appliances do.
+OVEN_STATES = (
+    StateRule("fault", _faulted("faultCode", _OVEN_FAULT)),
+    StateRule("off", Is("devstatus", "1")),
+    StateRule("standby", Is("devstatus", "2")),
+    StateRule("cooking", Is("devstatus", "3")),
+    StateRule("cook_complete", Is("devstatus", "4")),
+    StateRule("delay", Is("devstatus", "5")),
+    StateRule("pause", Is("devstatus", "6")),
+)
+# The cook is under way: setpoint and countdown are live only here. In standby the vendor
+# app replaces the whole working block with the programme list.
+_OVEN_COOKING = StateIs("cooking", "pause")
+
+OVEN_GUARD = (
+    Block(StateIs("off"), "appliance_off"),
+    Block(StateIs("fault"), "appliance_fault"),
+    Block(Is("childLock", "1"), "child_lock"),
+)
+_OVEN_POWER_EXEMPT = frozenset({"appliance_off", "appliance_fault", "child_lock"})
+
 OVEN = CategorySpec(
     device_type="0xB1",
     category="oven",
     primary_platform=None,  # no native HA platform — composite
+    states=OVEN_STATES,
+    guard=OVEN_GUARD,
     oven=OvenConfig(programs=OVEN_PROGRAMS),
     sensors=(
         SensorSpec("devstatus", "machine_status", device_class=SensorDeviceClass.ENUM,
                    transform=TRANSFORM_OVEN_STATUS, options=_OVEN_MACHINE_STATES),
+        # The countdown freezes when the cook pauses and holds the last cook's value when
+        # it ends, so outside cooking it is not a remaining time at all.
         SensorSpec("cookRemainTime", "remaining_time", device_class=SensorDeviceClass.DURATION,
-                   unit=UnitOfTime.MINUTES, transform=TRANSFORM_SECONDS_MINUTES),
+                   unit=UnitOfTime.MINUTES, transform=TRANSFORM_SECONDS_MINUTES,
+                   gates=Gates(meaningful_when=_OVEN_COOKING)),
         # The appliance echoes the working setpoint; it has no independent cavity probe.
         SensorSpec("upperTemp", "working_temperature", device_class=SensorDeviceClass.TEMPERATURE,
-                   unit=UnitOfTemperature.CELSIUS, state_class=SensorStateClass.MEASUREMENT),
+                   unit=UnitOfTemperature.CELSIUS, state_class=SensorStateClass.MEASUREMENT,
+                   gates=Gates(meaningful_when=_OVEN_COOKING)),
         SensorSpec("faultCode", "oven_fault", device_class=SensorDeviceClass.ENUM,
                    value_map=_OVEN_FAULT, entity_category=EntityCategory.DIAGNOSTIC),
     ),
@@ -662,19 +732,44 @@ _WASHER_DRY = {
     "no_dry": "0", "auto": "1", "auto_extra": "2", "auto_less": "3",
 }
 
+# The washer splits its state across a power flag and a run state, and reports "0" in the
+# run state as well when it is off — both spellings have to resolve to the same thing.
+WASHER_STATES = (
+    StateRule("power_off", Is("power", "0") | Is("runState", "0")),
+    StateRule("fault", Is("runState", "5") | _faulted("faultCode", _WASHER_FAULT)),
+    StateRule("standby", Is("runState", "1")),
+    StateRule("running", Is("runState", "2")),
+    StateRule("pause", Is("runState", "3")),
+    StateRule("finished", Is("runState", "4")),
+)
+_WASHER_RUNNING = StateIs("running", "pause")
+
+WASHER_GUARD = (
+    Block(StateIs("power_off"), "appliance_off"),
+    Block(StateIs("fault"), "appliance_fault"),
+    Block(Is("childLock", "1"), "child_lock"),
+)
+_WASHER_POWER_EXEMPT = frozenset({"appliance_off", "appliance_fault", "child_lock"})
+
 WASHER = CategorySpec(
     device_type="0xDB",
+    states=WASHER_STATES,
+    guard=WASHER_GUARD,
     category="washer",
     primary_platform=None,
     sensors=(
         SensorSpec("runState", "machine_status", device_class=SensorDeviceClass.ENUM,
                    value_map=_WASHER_RUN_STATE),
+        # The phase is the drum's current job; when no cycle runs there is no phase, and
+        # the vendor's progress bar renders nothing at all in those states.
         SensorSpec("washingStatus", "washing_phase", device_class=SensorDeviceClass.ENUM,
-                   value_map=_WASHER_PHASE),
+                   value_map=_WASHER_PHASE,
+                   gates=Gates(meaningful_when=_WASHER_RUNNING)),
         SensorSpec("faultCode", "fault", device_class=SensorDeviceClass.ENUM,
                    value_map=_WASHER_FAULT, entity_category=EntityCategory.DIAGNOSTIC),
         SensorSpec("remainTime", "remaining_time", device_class=SensorDeviceClass.DURATION,
-                   unit=UnitOfTime.MINUTES),
+                   unit=UnitOfTime.MINUTES,
+                   gates=Gates(meaningful_when=_WASHER_RUNNING)),
         SensorSpec("washTimeFromClean", "washes_since_clean",
                    state_class=SensorStateClass.TOTAL_INCREASING,
                    entity_category=EntityCategory.DIAGNOSTIC,
@@ -696,7 +791,8 @@ WASHER = CategorySpec(
     ),
     switches=(
         SwitchSpec("power", "power", on_command={"power": "1"},
-                   off_command={"power": "0"}),
+                   off_command={"power": "0"},
+                   gates=Gates(exempt=_WASHER_POWER_EXEMPT)),
         SwitchSpec("startPause", "running", on_command={"startPause": "1"},
                    off_command={"startPause": "0"}),
         SwitchSpec("addRinse", "extra_rinse", on_command={"addRinse": "1"},

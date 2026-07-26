@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import HolabrainConfigEntry
+from .account import HolabrainRefreshButton
 from .dishwasher import build_dishwasher_entities
 from .entity import HolabrainEntity
 from .helpers import async_add_with_discovery, build_entities
@@ -25,6 +26,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data.coordinator
+    async_add_entities([HolabrainRefreshButton(coordinator)])
     async_add_with_discovery(
         entry,
         coordinator,

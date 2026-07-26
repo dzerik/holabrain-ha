@@ -464,16 +464,23 @@ async def test_every_entity_of_an_offline_device_is_unavailable_at_once(
     """
     assert await setup_integration()
     registry = er.async_get(hass)
-    holabrain_entities = [
+    # Scoped to what the appliance itself reports. Two groups are deliberately excluded:
+    # the account's own controls (mode, refresh), which are how a user reacts to an outage,
+    # and the consumption totals, which the cloud holds and can still answer for an
+    # appliance that is unplugged.
+    appliance_entities = [
         entry.entity_id
         for entry in registry.entities.values()
-        if entry.platform == DOMAIN and not entry.disabled_by
+        if entry.platform == DOMAIN
+        and not entry.disabled_by
+        and DISHWASHER_CODE in (entry.unique_id or "")
+        and not entry.unique_id.endswith(("_month", "_year"))
     ]
-    assert len(holabrain_entities) >= 5
+    assert len(appliance_entities) >= 5
 
     await push(f"eu/eu_{DISHWASHER_CODE}/dev", {"onlineChange": {"online": 0}})
 
-    assert {hass.states.get(eid).state for eid in holabrain_entities} == {"unavailable"}
+    assert {hass.states.get(eid).state for eid in appliance_entities} == {"unavailable"}
 
 
 async def test_unsupported_device_types_produce_no_entities_at_all(

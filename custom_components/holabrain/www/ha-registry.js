@@ -36,6 +36,14 @@ export const NATIVE_DOMAINS = new Set([
  * entity id suffix is matched against this list.
  */
 export const KNOWN_ROLES = [
+  // account-level: these belong to the cloud connection, not to an appliance
+  "exclusive_mode",
+  "refresh_now",
+  // consumption, aggregated by the cloud rather than read off the appliance
+  "energy_month",
+  "energy_year",
+  "water_month",
+  "water_year",
   // dishwasher
   "wash_stage",
   "program",

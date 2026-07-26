@@ -43,6 +43,24 @@ CONF_WIFI_PASSWORD = "wifi_password"
 CONF_PANEL = "panel"
 DEFAULT_PANEL = False
 
+# How much of the account the integration is willing to take.
+#
+# The cloud allows exactly one session per account, so every request Home Assistant makes
+# can evict whoever holds it — in practice, the phone in the user's pocket. There is no
+# clever way around that, only a choice about who wins, and that choice belongs to the user.
+CONF_MODE = "mode"
+#: Never spend an account request on our own initiative. Status comes from the push
+#: channel, which authenticates with its own certificate and does not touch the session.
+#: The mobile app keeps working; the cost is that a push outage goes unnoticed until
+#: someone asks for a refresh.
+MODE_COOPERATIVE = "cooperative"
+#: Home Assistant is the primary client: it polls, fetches statistics and reclaims the
+#: session when something else takes it. The mobile app will be signed out repeatedly.
+MODE_EXCLUSIVE = "exclusive"
+#: Cooperative by default — a new user still has the app installed, and silently signing
+#: them out of it is the worst possible first impression.
+DEFAULT_MODE = MODE_COOPERATIVE
+
 # Frontend assets. The static path also serves the Lovelace card, so it is mounted
 # whenever the integration is loaded, independently of the panel option.
 PANEL_URL_PATH = "holabrain"

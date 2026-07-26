@@ -18,6 +18,32 @@ last owns it.
 | Sending a command while the *app* owns the session | Yes — the session is taken back |
 | **Scan for appliances** (option flow, panel button, `holabrain.scan_devices`) | **Yes, always** |
 | **Add an appliance** (claiming one) | **Yes** |
+| **Refresh now** (account device) | **Yes** — that is what you are asking for |
+| Reading consumption figures (exclusive mode, after a wash) | **Yes**, once per cycle |
+
+## Choosing who wins: cooperative or exclusive
+
+There is no way to share the session, only a choice about who wins — so the integration asks
+instead of deciding for you. The account device carries a **Exclusive mode** switch and a
+**Refresh now** button.
+
+**Cooperative (the default).** The integration never spends an account request on its own
+initiative. Status comes from the push channel, which uses its own certificate and does not
+touch the session; consumption figures are fetched once at start-up and then only when you
+ask. The mobile app keeps working normally. The cost is that if the push channel dies
+quietly, nothing notices until you press **Refresh now** — the integration will not start
+competing to find out.
+
+**Exclusive.** Home Assistant behaves as the primary client: it polls when push is silent,
+re-reads the consumption figures after every wash, and reclaims the session when something
+else takes it. Expect the mobile app to be signed out repeatedly. Choose this if Home
+Assistant is where you actually control the appliances.
+
+Your own actions are never withheld in either mode. Sending a command, pressing **Refresh
+now**, scanning for appliances — all of those work the same either way, because the point of
+cooperative mode is to stop the *integration* from taking the session, not to stop you.
+
+Switching takes effect immediately; no reload, and nothing is lost.
 
 ## What the integration does about it
 

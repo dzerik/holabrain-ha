@@ -155,25 +155,56 @@ found there.
 For any of these, the decisive evidence is a screenshot of the entity next to the appliance's
 own display, plus diagnostics taken **mid-cycle** rather than idle.
 
-### The lifetime counters are unknown or stop moving
+### A reading went "unknown" when the cycle ended
 
-Total water, total energy and total cycles are diagnostic entities and **disabled by
-default** — enable them on the device page first (see
-[Some entities are greyed out](#some-entities-are-greyed-out--disabled)).
+That is deliberate, and it is the fix for a real problem rather than a bug.
 
-Once enabled they update at the end of each wash, not continuously. That is deliberate:
-those counters exist only in the cloud's full status snapshot, while the real-time push
-channel carries a shorter frame without them, so fetching one costs an account request —
-and account requests are what sign the mobile app out. Since the appliance only books the
-totals when a cycle settles, the snapshot is taken exactly then.
+The appliance reports every field it owns all the time, whether or not the field currently
+means anything. A switched-off dishwasher keeps reporting the last wash's programme, stage
+and remaining time — the vendor's own app refuses to display those and shows a table
+estimate instead. Home Assistant used to pass them through, so an idle appliance showed
+hours "remaining" and automations fired on a cycle that had ended days earlier.
 
-Two consequences worth knowing:
+So each reading now declares the states in which it means something:
 
-- On a freshly paired appliance the counters read `unknown` until the first wash finishes.
-  The cloud starts a new record with the binding; the old totals belonged to the previous
-  one and are not carried over.
-- If the snapshot request collides with the mobile app holding the session, it is skipped
-  rather than retried, and the counters catch up after the next wash.
+| Reading | Meaningful while |
+|---|---|
+| Wash stage | a cycle is running, paused, or has just finished |
+| Remaining time, water temperature | a cycle is running or paused |
+| Programme | the appliance is not switched off |
+| Cook time, oven temperature | a cook is running or paused |
+| Heating status | the water heater is not switched off |
+
+Outside those states the entity reads `unknown` rather than showing a leftover. If a reading
+blanks while the appliance is genuinely working, that *is* worth reporting — attach
+diagnostics taken at that moment, since they include the resolved appliance state.
+
+### The consumption figures are unknown
+
+Water and electricity are reported by four sensors — `energy_month`, `water_month`,
+`energy_year`, `water_year` — in kilowatt-hours and litres. They come from the cloud's own
+aggregation rather than from the appliance, which is why they are already in real units and
+why they survive re-pairing: the history belongs to the appliance's record, not to the
+current binding.
+
+They are fetched once after start-up, and after that only when a wash finishes — the buckets
+are calendar days, so asking more often cannot produce a different number, and every request
+competes for the account's single session.
+
+In **cooperative mode** the after-the-wash fetch is skipped as well, because that mode does
+not spend account requests on the integration's own initiative. Press **Refresh now** on the
+account device to bring them up to date, or switch to exclusive mode.
+
+If they stay unknown after a refresh, the appliance's model does not report consumption: not
+every model meters itself.
+
+### The appliance's own lifetime counters are unknown
+
+`total_cycles`, `total_water` and `total_energy` are a different thing: raw counters read out
+of the status payload, disabled by default, and kept only for completeness. They appear in
+the status snapshot but not in push frames, and their scale is not documented anywhere — the
+vendor's own app never reads them. **Prefer the consumption sensors above**, which are stated
+in real units.
 
 ---
 

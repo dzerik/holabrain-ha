@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import HolabrainConfigEntry
+from .account import HolabrainExclusiveModeSwitch
 from .entity import HolabrainEntity
 from .helpers import async_add_with_discovery, build_entities
 from .oven import build_oven_entities
@@ -26,6 +27,8 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data.coordinator
+    # Belongs to the account, so it is added once and never rediscovered.
+    async_add_entities([HolabrainExclusiveModeSwitch(coordinator)])
     async_add_with_discovery(
         entry,
         coordinator,

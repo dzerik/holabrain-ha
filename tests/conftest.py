@@ -28,7 +28,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.holabrain.aiodollin import DollinClient, InMemoryTokenStore
 from custom_components.holabrain.aiodollin.auth.signer import encrypt_password
 from custom_components.holabrain.aiodollin.const import ENCRYPT_KEY
-from custom_components.holabrain.const import CONF_ACCOUNT, CONF_REGION, DOMAIN
+from custom_components.holabrain.const import (
+    CONF_ACCOUNT,
+    CONF_MODE,
+    CONF_REGION,
+    DOMAIN,
+    MODE_EXCLUSIVE,
+)
 from custom_components.holabrain.coordinator import HolabrainCoordinator
 
 # --- device fixtures ---------------------------------------------------------------------
@@ -132,6 +138,7 @@ class FakeCloud:
     QUERY = "query"
     COMMAND = "command"
     VERIFICATION = "verification"
+    STATISTICS = "statistics"
     BIND = "bind"
     RENAME = "rename"
     UNBIND = "unbind"
@@ -170,6 +177,9 @@ class FakeCloud:
         self.unbound: list[str] = []
         # Appliances the account refuses to unbind, keyed by appliance id.
         self.unbind_refuses: set[str] = set()
+        # Consumption reports, keyed by (thing_code, period). Shaped like the real ones:
+        # already in kWh and litres, one bucket per calendar day or month.
+        self.consumption: dict[tuple[str, str], dict[str, Any]] = {}
 
     # -- scripting -----------------------------------------------------------------------
     def fail_next(self, kind: str, outcome: Any, times: int = 1) -> None:
@@ -286,6 +296,23 @@ class FakeCloud:
             self.states.pop(code, None)
         return httpx.Response(200, json={"code": 0, "msg": "", "data": removed})
 
+    def _statistics(self, payload: Any, request: httpx.Request) -> httpx.Response:
+        period = request.url.path.rsplit("/", 1)[-1]
+        report = self.consumption.get((payload.get("thingCode"), period))
+        return httpx.Response(200, json={"code": 0, "msg": "success!", "data": report})
+
+    def set_consumption(
+        self, thing_code: str, period: str, *, energy: float, water: float, detail=None
+    ) -> None:
+        self.consumption[(thing_code, period)] = {
+            "totalEnergy": energy,
+            "totalWater": water,
+            "energyDetail": [
+                {"date": date, "value": value} for date, value in (detail or {}).items()
+            ],
+            "waterDetail": [],
+        }
+
     def _bind(self, payload: Any, request: httpx.Request) -> httpx.Response:
         self.bound.append((payload.get("applianceCode"), payload.get("applianceType")))
         return httpx.Response(200, json={"code": 0, "msg": "", "data": None})
@@ -303,6 +330,10 @@ class FakeCloud:
             return self._dispatch(self.CAPABILITY, path, payload, self._capability, request)
         if path.endswith("/create/app/cert"):
             return self._dispatch(self.CERTIFICATE, path, payload, self._cert, request)
+        if "/statistics/data/report/" in path:
+            return self._dispatch(
+                self.STATISTICS, path, payload, self._statistics, request
+            )
         if "/appliance/query/" in path:
             return self._dispatch(self.QUERY, path, payload, self._query, request)
         if "/device/command/" in path:
@@ -504,6 +535,10 @@ def config_entry(hass: HomeAssistant, cloud: FakeCloud) -> MockConfigEntry:
             "country": "RU",
             "device_id": "hbtestdevice0000000000000000",
         },
+        # Exclusive by default here, unlike in production: most of these tests describe
+        # what polling does, and polling is precisely what cooperative mode declines to do.
+        # Cooperative behaviour has its own tests, which set the option explicitly.
+        options={CONF_MODE: MODE_EXCLUSIVE},
     )
     entry.add_to_hass(hass)
     return entry

@@ -13,6 +13,7 @@ from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.holabrain.aiodollin import CapabilityProfile, Device, DeviceState
 from custom_components.holabrain.binary_sensor import HolabrainBinarySensor
+from custom_components.holabrain.coordinator import resolve_machine_state
 from custom_components.holabrain.helpers import build_entities
 from custom_components.holabrain.oven import build_cook_instruction, build_oven_entities
 from custom_components.holabrain.registry import OVEN, OVEN_PROGRAMS
@@ -60,6 +61,11 @@ class _FakeCoordinator:
 
     def capability_for(self, thing_code):
         return self._profile
+
+    def machine_state(self, thing_code):
+        # Delegates to the production resolver: a stub state machine here would let the
+        # registry's own rules drift away from what these tests claim to check.
+        return resolve_machine_state(_DEVICE.device_type, self.data.get(thing_code))
 
     def draft(self, thing_code):
         return self.drafts.setdefault(thing_code, {})

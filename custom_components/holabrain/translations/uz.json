@@ -347,6 +347,9 @@
       },
       "auto_dose": {
         "name": "Avtodozalash"
+      },
+      "exclusive_mode": {
+        "name": "Monopol rejim"
       }
     },
     "number": {
@@ -469,6 +472,9 @@
       },
       "start_cycle": {
         "name": "Siklni boshlash"
+      },
+      "refresh_now": {
+        "name": "Hozir yangilash"
       }
     }
   },
@@ -511,6 +517,15 @@
     },
     "unbind_refused": {
       "message": "Hisob qurilmani o'chirmadi — u hali ham bog'langan."
+    },
+    "appliance_off": {
+      "message": "Qurilma o'chirilgan. Avval uni yoqing."
+    },
+    "appliance_fault": {
+      "message": "Qurilma nosozlik haqida xabar bermoqda va u bartaraf etilmaguncha buyruqlarni qabul qilmaydi."
+    },
+    "child_lock": {
+      "message": "Bolalardan himoya qulfi yoqilgan. Avval uni qurilmada o'chiring."
     }
   },
   "issues": {

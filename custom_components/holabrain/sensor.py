@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import HolabrainConfigEntry
 from .aiodollin import DeviceState
+from .consumption import build_consumption_entities
 from .entity import HolabrainEntity
 from .helpers import async_add_with_discovery, build_entities
 from .registry import (
@@ -35,7 +36,10 @@ async def async_setup_entry(
         entry,
         coordinator,
         async_add_entities,
-        lambda seen: build_entities(coordinator, "sensors", HolabrainSensor, seen),
+        lambda seen: (
+            build_entities(coordinator, "sensors", HolabrainSensor, seen)
+            + build_consumption_entities(coordinator, seen)
+        ),
     )
 
 

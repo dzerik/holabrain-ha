@@ -347,6 +347,9 @@
       },
       "auto_dose": {
         "name": "Auto dosing"
+      },
+      "exclusive_mode": {
+        "name": "Exclusive mode"
       }
     },
     "number": {
@@ -469,6 +472,9 @@
       },
       "start_cycle": {
         "name": "Start cycle"
+      },
+      "refresh_now": {
+        "name": "Refresh now"
       }
     }
   },
@@ -511,6 +517,15 @@
     },
     "unbind_refused": {
       "message": "The account did not remove the appliance; it is still bound."
+    },
+    "appliance_off": {
+      "message": "The appliance is switched off. Switch it on first."
+    },
+    "appliance_fault": {
+      "message": "The appliance is reporting a fault and refuses commands until it is cleared."
+    },
+    "child_lock": {
+      "message": "The child lock is on. Turn it off on the appliance first."
     }
   },
   "issues": {

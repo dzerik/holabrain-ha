@@ -56,11 +56,19 @@ from .aiodollin import (
     RateLimitError,
     SessionTakeoverError,
 )
+from .aiodollin.api.statistics import PERIOD_MONTH, PERIOD_YEAR, ConsumptionReport
 from .aiodollin.transport.mqtt import MqttClient
 from .aiodollin.transport.ssl import build_client_ssl_context
 from .conditions import resolve_state
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
-from .registry import CATEGORIES, get_category
+from .const import (
+    CONF_MODE,
+    DEFAULT_MODE,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    MODE_COOPERATIVE,
+    MODE_EXCLUSIVE,
+)
+from .registry import CATEGORIES, METERED_CATEGORIES, get_category
 
 
 class _SnapshotContext:
@@ -82,6 +90,16 @@ class _SnapshotContext:
     def program_allows(self, flag: str, exclusion_param: str | None) -> bool:
         # Programme scope belongs to an entity's composer, not to the appliance's state.
         return True
+
+
+def resolve_machine_state(device_type: str, state: DeviceState | None) -> str | None:
+    """The category's state-machine state for one snapshot, or ``None`` if undecidable."""
+    if state is None:
+        return None
+    category = get_category(device_type)
+    if category is None or not category.states:
+        return None
+    return resolve_state(category.states, _SnapshotContext(state))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -148,6 +166,12 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         self._unsupported: set[str] = set()
         self._snapshot_due = False
         self._machine_states: dict[str, tuple[DeviceState, str | None]] = {}
+        self._explicit_refresh = False
+        self._consumption: dict[tuple[str, str], ConsumptionReport] = {}
+        # Tied to the first successful poll rather than to setup: widening the capability
+        # profile reloads the entry, and a fetch done during the discarded setup would be
+        # lost with the coordinator that made it.
+        self._consumption_pending = True
 
     @property
     def client(self) -> DollinClient:
@@ -177,12 +201,7 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         if cached is not None and cached[0] is state:
             return cached[1]
         device = self.devices.get(thing_code)
-        category = get_category(device.device_type) if device is not None else None
-        name = (
-            resolve_state(category.states, _SnapshotContext(state))
-            if category is not None and category.states
-            else None
-        )
+        name = resolve_machine_state(device.device_type, state) if device is not None else None
         self._machine_states[thing_code] = (state, name)
         return name
 
@@ -263,6 +282,59 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             return False
         return dt_util.utcnow() - self._last_push < PUSH_SILENCE_LIMIT
 
+    def consumption(self, thing_code: str, period: str) -> ConsumptionReport | None:
+        """The last consumption report fetched for a device, if any."""
+        return self._consumption.get((thing_code, period))
+
+    async def async_fetch_consumption(self) -> None:
+        """Refresh the consumption reports for every metering appliance.
+
+        Failure is swallowed on purpose. These figures are a nicety measured in calendar
+        days: losing a race for the account session here must not surface as an error, and
+        the next attempt will pick the numbers up unchanged.
+        """
+        for thing_code, device in self.devices.items():
+            category = get_category(device.device_type)
+            if category is None or category.category not in METERED_CATEGORIES:
+                continue
+            for period in (PERIOD_MONTH, PERIOD_YEAR):
+                try:
+                    report = await self._client.statistics.async_report(thing_code, period)
+                except DollinError as err:
+                    _LOGGER.debug("consumption (%s) unavailable: %s", period, err)
+                    return
+                self._consumption[(thing_code, period)] = report
+        self.async_update_listeners()
+
+    @property
+    def mode(self) -> str:
+        """Whether the integration shares the account or takes it over."""
+        return self.config_entry.options.get(CONF_MODE, DEFAULT_MODE)
+
+    async def async_set_mode(self, mode: str) -> None:
+        """Switch modes without reloading: the entities are the same either way."""
+        if mode == self.mode:
+            return
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, options={**self.config_entry.options, CONF_MODE: mode}
+        )
+        if mode == MODE_EXCLUSIVE:
+            # Taking over means answering for the data straight away rather than waiting
+            # for the next tick to notice the mode changed.
+            await self.async_refresh_now()
+        else:
+            self.async_update_listeners()
+
+    async def async_refresh_now(self) -> None:
+        """Poll once because a person asked, whatever the mode says.
+
+        Cooperative mode forbids polling on our own initiative, not on the user's: someone
+        pressing "refresh" has decided that this answer is worth the mobile app's session.
+        """
+        self._explicit_refresh = True
+        await self.async_request_refresh()
+        await self.async_fetch_consumption()
+
     async def _async_update_data(self) -> dict[str, DeviceState]:
         """Refresh device status.
 
@@ -271,9 +343,27 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         take the session back from that client. The push channel authenticates with its own
         certificate and is unaffected by that, so while it is delivering, the poll is
         skipped entirely and the integration stops competing for the account.
+
+        Cooperative mode goes further and skips the scheduled poll unconditionally, even
+        with the push channel silent: in that mode a stale reading is the accepted price of
+        leaving the account alone, and the way out is the refresh button rather than a
+        tug-of-war nobody asked for.
         """
-        if self._push_is_healthy() and not self._snapshot_due:
-            return dict(self.data)
+        explicit = self._explicit_refresh
+        self._explicit_refresh = False
+        self._consumption: dict[tuple[str, str], ConsumptionReport] = {}
+        # Tied to the first successful poll rather than to setup: widening the capability
+        # profile reloads the entry, and a fetch done during the discarded setup would be
+        # lost with the coordinator that made it.
+        self._consumption_pending = True
+        if not explicit:
+            # With nothing cached yet the poll always runs, whatever the mode: setting the
+            # integration up is itself the user asking for its data, and refusing here
+            # would leave every entity unknown with no way to find out why.
+            if self.data and self.mode == MODE_COOPERATIVE:
+                return dict(self.data)
+            if self._push_is_healthy() and not self._snapshot_due:
+                return dict(self.data)
         # One snapshot settles every pending trigger; clear it before the request so a
         # failure does not leave the flag latched into a poll on every tick.
         self._snapshot_due = False
@@ -328,6 +418,13 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             )
         else:
             self._failed_polls = 0
+            if self._consumption_pending:
+                # Once, off the back of a poll that worked: by now the account answers and
+                # the appliance inventory is settled. Scheduled rather than awaited so a
+                # slow statistics reply cannot hold up the status the platforms are waiting
+                # for.
+                self._consumption_pending = False
+                self.hass.async_create_task(self.async_fetch_consumption())
         self._absorb_status_fields(states)
         return states
 
@@ -663,6 +760,12 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         if trigger.fires(before.attributes.get(trigger.key), after.attributes.get(trigger.key)):
             self._snapshot_due = True
             self.hass.async_create_task(self.async_request_refresh())
+            if self.mode == MODE_EXCLUSIVE:
+                # The consumption figures move exactly here and nowhere else, so this is
+                # the one moment a request buys something. Cooperative mode still declines:
+                # the user asked for the account to be left alone, and a stale total is a
+                # smaller price than an app that keeps signing out.
+                self.hass.async_create_task(self.async_fetch_consumption())
 
     async def async_shutdown(self) -> None:
         """Tear down the push connection and the revalidation timer."""

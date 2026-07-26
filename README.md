@@ -128,8 +128,14 @@ settings as `number.dishwasher_rinse_aid_level` and `number.dishwasher_water_sof
 Washing machines with automatic dosing expose `binary_sensor.washing_machine_detergent_low`
 and `binary_sensor.washing_machine_softener_low`.
 
-Refill counters and lifetime water/energy totals exist too, as **diagnostic entities disabled
-by default** — enable them in the entity settings if you want long-term statistics.
+**Water and electricity consumption** is exposed as `sensor.dishwasher_energy_month`,
+`sensor.dishwasher_water_month` and their yearly counterparts, in kWh and litres with the
+matching `device_class`, so they drop straight into Home Assistant's energy and water
+dashboards. The figures come from the cloud's own aggregation, so they are already in real
+units and survive re-pairing the appliance.
+
+Refill counters and the appliance's raw lifetime totals exist as well, as **diagnostic
+entities disabled by default**.
 
 ### Automate
 

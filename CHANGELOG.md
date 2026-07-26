@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-27
+
+### Added
+
+- **Cooperative and exclusive modes.** The cloud allows one session per account, so every
+  request Home Assistant makes can sign the mobile app out. There is no way to share it,
+  only a choice about who wins — so the integration now asks. Cooperative (the default)
+  never spends an account request on its own initiative; exclusive treats Home Assistant as
+  the primary client. An **Exclusive mode** switch and a **Refresh now** button on the new
+  account device; switching takes effect without a reload.
+- **Water and electricity consumption** as four sensors per metering appliance — monthly and
+  yearly, in kWh and litres, with `device_class: energy` and `water`, so they drop straight
+  into Home Assistant's energy and water dashboards. The figures come from the cloud's own
+  aggregation rather than from the appliance's status, which is why they are already in real
+  units and why they survive re-pairing.
+- **A declared state machine per appliance category**, in the registry, as the single place
+  each family's states are written down.
+
+### Fixed
+
+- **Readings that stopped meaning anything no longer look live.** An appliance reports every
+  field it owns all the time: a switched-off dishwasher kept reporting the last wash's
+  programme, stage and remaining time, so Home Assistant showed hours "remaining" on an idle
+  machine and automations fired on a cycle that had ended days before. Each reading now
+  declares the states in which it is meaningful and reads `unknown` outside them.
+- **Refusals now say why.** A command the appliance would reject raises a translated error
+  naming the reason (switched off, faulted, door open, child lock) instead of failing
+  vaguely. Deliberately not marked unavailable: Home Assistant drops unavailable entities
+  from a service call's targets, so an automation would be told it succeeded while nothing
+  happened. The power control is exempt from all four checks, as it must be.
+- **A delayed start is no longer reported as "off".** `power` on a dishwasher is the state
+  itself rather than a boolean — `0` off, `1`/`5` standby, `2` reserved, `3` running — and
+  `2` was being read as off, which fired "switch it off when it finishes" in the middle of a
+  reservation.
+
 ## [0.11.1] - 2026-07-26
 
 ### Fixed
