@@ -1,0 +1,34 @@
+[project]
+name = "holabrain-ha"
+version = "0.11.0"
+description = "Home Assistant integration for HolaBrain smart-home appliances (cloud)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "dzerik" }]
+
+# The standalone core lives in custom_components/holabrain/aiodollin and is written
+# with zero Home Assistant imports so it can later be split out into its own
+# `aiodollin` PyPI distribution without code changes.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The integration is imported as `custom_components.holabrain`, so the repository root has
+# to be importable — the same layout Home Assistant itself loads a custom component from.
+pythonpath = ["."]
+asyncio_mode = "auto"
+addopts = "-q --cov=custom_components/holabrain --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["custom_components/holabrain"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["custom_components", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]

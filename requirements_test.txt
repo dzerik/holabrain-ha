@@ -1,0 +1,9 @@
+# pytest-homeassistant-custom-component pins the exact pytest / pytest-asyncio /
+# pytest-cov versions Home Assistant itself is tested with, and pulls in Home Assistant
+# (which in turn pins httpx, cryptography and paho-mqtt). Adding our own version floors
+# for those packages makes the resolver fail, so this file deliberately keeps only the
+# things that framework does not provide.
+pytest-homeassistant-custom-component
+
+respx
+ruff

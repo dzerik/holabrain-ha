@@ -1,0 +1,21 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/dzerik/holabrain-ha/discussions
+    about: >-
+      Ask how something works, share an automation, or float an idea before it becomes a
+      feature request.
+  - name: Is my appliance supported?
+    url: https://github.com/dzerik/holabrain-ha/blob/main/docs/hcl.md
+    about: >-
+      The compatibility list — which categories and models are verified, which are modelled
+      from the protocol, and what a report needs to move one up.
+  - name: Documentation
+    url: https://github.com/dzerik/holabrain-ha/tree/main/docs
+    about: >-
+      Why a control is missing (capabilities), how the account session is shared with the
+      vendor app, the entity list per category, and how to collect diagnostics.
+  - name: Security vulnerability
+    url: https://github.com/dzerik/holabrain-ha/security/advisories/new
+    about: >-
+      Report privately through a draft advisory — never in a public issue. See SECURITY.md.

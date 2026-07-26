@@ -1,0 +1,522 @@
+{
+  "services": {
+    "refresh_capabilities": {
+      "name": "Refresh capabilities",
+      "description": "Re-reads what each appliance supports and rebuilds its entities if the answer changed. Capabilities are cached and revalidated automatically; use this after enabling a feature on the appliance or if entities are missing.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Limit the refresh to one HolaBrain account. All accounts are refreshed when omitted."
+        },
+        "device_id": {
+          "name": "Device",
+          "description": "Limit the refresh to the account this device belongs to."
+        }
+      }
+    },
+    "scan_devices": {
+      "name": "Scan for appliances",
+      "description": "Re-reads the HolaBrain account so appliances paired after setup appear in Home Assistant. This claims the account session and therefore signs the HolaBrain mobile app out; everyday monitoring never does.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Limit the scan to one HolaBrain account. All accounts are scanned when omitted."
+        },
+        "device_id": {
+          "name": "Device",
+          "description": "Limit the scan to the account this device belongs to."
+        }
+      }
+    },
+    "rename_device": {
+      "name": "Rename appliance",
+      "description": "Changes the appliance's name in the HolaBrain account. The mobile app shows the new name as well.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The appliance to rename."
+        },
+        "name": {
+          "name": "Name",
+          "description": "The new name for the appliance."
+        }
+      }
+    },
+    "unbind_device": {
+      "name": "Remove appliance from account",
+      "description": "Unbinds the appliance from the HolaBrain account and removes it from Home Assistant. Adding it back requires physical access to the appliance, so this cannot be undone remotely.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The appliance to remove from the account."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Must be enabled. It guards against an accidental call, because the removal cannot be undone from Home Assistant."
+        }
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "HolaBrain",
+        "description": "Sign in with your HolaBrain account.",
+        "data": {
+          "account": "Email",
+          "password": "Password",
+          "region": "Region",
+          "country": "Country code"
+        },
+        "data_description": {
+          "account": "The email address you sign in to the HolaBrain app with.",
+          "password": "Your HolaBrain account password. It is stored so the integration can sign in again after the cloud ends the session.",
+          "region": "The cloud region your account belongs to. Use the same one as the mobile app.",
+          "country": "Two-letter country code sent at sign-in, for example RU."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate",
+        "description": "The HolaBrain cloud rejected the stored session for {account}. Enter the password again.",
+        "data": {
+          "password": "Password"
+        },
+        "data_description": {
+          "password": "Your HolaBrain account password."
+        }
+      },
+      "reconfigure": {
+        "title": "HolaBrain",
+        "description": "Update the stored credentials, region or country. The account itself must stay the same — add a second entry to use another one.",
+        "data": {
+          "account": "Email",
+          "password": "Password",
+          "region": "Region",
+          "country": "Country code"
+        },
+        "data_description": {
+          "account": "The email address you sign in to the HolaBrain app with.",
+          "password": "Your HolaBrain account password. It is stored so the integration can sign in again after the cloud ends the session.",
+          "region": "The cloud region your account belongs to. Use the same one as the mobile app.",
+          "country": "Two-letter country code sent at sign-in, for example RU."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid account or password.",
+      "cannot_connect": "Failed to connect to the HolaBrain cloud."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Re-authentication successful.",
+      "reconfigure_successful": "Re-configuration was successful.",
+      "account_mismatch": "Those credentials belong to a different account. Add a second entry instead of re-configuring this one."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Panel",
+        "menu_options": {
+          "panel": "Panel",
+          "scan": "Scan for appliances",
+          "add_appliance": "Add an appliance"
+        }
+      },
+      "panel": {
+        "title": "Panel",
+        "description": "Show the HolaBrain panel in the sidebar.",
+        "data": {
+          "panel": "Show the panel in the sidebar"
+        }
+      },
+      "scan": {
+        "title": "Scan for appliances",
+        "description": "Re-reads your account to pick up appliances paired after setup.\n\n⚠️ **This will sign you out of the HolaBrain mobile app.** The cloud allows only one active session per account, so claiming it here ends the app's session and you will have to sign in there again. Everyday monitoring never does this — only this scan does."
+      },
+      "claim": {
+        "title": "Add an appliance",
+        "description": "These appliances answered on your network and are not on the account yet.\\n\\n**This works only right after the HolaBrain mobile app has joined the appliance to Wi-Fi but failed to add it.** Outside that window the cloud will not hand the appliance over, and pressing its pairing button does *not* help — it clears the Wi-Fi settings and takes the appliance off the network. In every other case, add the appliance in the mobile app.\\n\\nWi-Fi details are optional; fill them in only if the claim is refused. The **BSSID is the MAC address of your router's radio** (like `a4:2b:b0:11:22:33`), *not* the network name.\\n\\n⚠️ **Claiming will sign you out of the HolaBrain mobile app.**",
+        "data": {
+          "appliance": "Appliance",
+          "bssid": "Router MAC address (BSSID) — optional",
+          "wifi_password": "Wi-Fi password — optional"
+        }
+      }
+    },
+    "abort": {
+      "scan_done": "Scan finished: {added} appliance(s) added, {removed} removed.",
+      "scan_failed": "Could not reach the cloud to scan the account.",
+      "scan_auth_failed": "The account rejected the scan. Re-authenticate and try again.",
+      "appliance_offline": "The appliance is not reachable by the cloud right now.",
+      "bind_failed": "The cloud refused to add the appliance.",
+      "appliance_added": "Appliance added: {added} new appliance(s) are now available.",
+      "nothing_to_add": "Every appliance found on the network is already on the account.",
+      "no_appliances_found": "No appliances answered on the network. Make sure the appliance is powered on, on the same network as Home Assistant, and in its setup mode.",
+      "search_failed": "The local network search could not be started."
+    },
+    "error": {
+      "serial_unknown": "The cloud does not know this serial number. Check it against the label.",
+      "not_claimable": "The cloud will not hand this appliance over. That is expected unless the mobile app has just joined it to Wi-Fi — add it in the app instead. Do not press its pairing button: that clears its Wi-Fi settings.",
+      "cannot_connect": "Failed to reach the HolaBrain cloud.",
+      "not_claimable_try_wifi": "The cloud will not hand this appliance over. That is expected unless the mobile app has just joined it to Wi-Fi — add it in the app instead. Do not press its pairing button: that clears its Wi-Fi settings."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "wash_stage": {
+        "name": "Wash stage",
+        "state": {
+          "pre_wash": "Pre-wash",
+          "main_wash": "Main wash",
+          "rinse": "Rinse",
+          "drying": "Drying",
+          "finished": "Finished",
+          "idle": "Idle"
+        }
+      },
+      "program": {
+        "name": "Program",
+        "state": {
+          "auto": "Auto",
+          "intensive": "Intensive",
+          "universal": "Universal",
+          "eco": "Eco",
+          "delicate": "Delicate",
+          "90mins": "90 minutes",
+          "rapid": "Rapid",
+          "soak": "Soak",
+          "party": "Party",
+          "hygiene": "Hygiene",
+          "self_cleaning": "Self-cleaning"
+        }
+      },
+      "fault": {
+        "name": "Fault",
+        "state": {
+          "none": "—",
+          "e1": "E1 — water inlet",
+          "e2": "E2",
+          "e3": "E3 — heating",
+          "e4": "E4 — overflow",
+          "e8": "E8",
+          "ec": "EC",
+          "eh": "EH",
+          "c4": "C4",
+          "l4": "L4",
+          "e10": "E10",
+          "e12": "E12",
+          "e21": "E21",
+          "e30": "E30",
+          "e33": "E33",
+          "e37": "E37"
+        }
+      },
+      "remaining_time": {
+        "name": "Time remaining"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "salt_refills": {
+        "name": "Salt refills"
+      },
+      "rinse_aid_refills": {
+        "name": "Rinse aid refills"
+      },
+      "total_cycles": {
+        "name": "Total cycles"
+      },
+      "total_water": {
+        "name": "Total water"
+      },
+      "total_energy": {
+        "name": "Total energy"
+      },
+      "heat_status": {
+        "name": "Heating status",
+        "state": {
+          "standby": "Standby",
+          "heating": "Heating",
+          "keep_warm": "Keeping warm"
+        }
+      },
+      "machine_status": {
+        "name": "Machine status",
+        "state": {
+          "power_off": "Off",
+          "standby": "Standby",
+          "running": "Running",
+          "pause": "Paused",
+          "finished": "Finished",
+          "fault": "Fault"
+        }
+      },
+      "working_temperature": {
+        "name": "Working temperature"
+      },
+      "oven_fault": {
+        "name": "Fault code",
+        "state": {
+          "none": "None",
+          "e01": "E01",
+          "e02": "E02",
+          "e03": "E03",
+          "e72": "E72 — food probe",
+          "d11": "d11"
+        }
+      },
+      "washing_phase": {
+        "name": "Washing phase",
+        "state": {
+          "idle": "Idle",
+          "rinse": "Rinse",
+          "wash": "Wash",
+          "pre_wash": "Pre-wash",
+          "spin": "Spin",
+          "auto_weight": "Weighing",
+          "drying": "Drying"
+        }
+      },
+      "washes_since_clean": {
+        "name": "Washes since drum clean"
+      }
+    },
+    "binary_sensor": {
+      "door": {
+        "name": "Door"
+      },
+      "salt_low": {
+        "name": "Salt low"
+      },
+      "rinse_aid_low": {
+        "name": "Rinse aid low"
+      },
+      "fault": {
+        "name": "Fault"
+      },
+      "preheating": {
+        "name": "Pre-heating"
+      },
+      "preheat_reached": {
+        "name": "Pre-heat reached"
+      },
+      "water_tank": {
+        "name": "Water tank"
+      },
+      "water_low": {
+        "name": "Water low"
+      },
+      "water_change": {
+        "name": "Change water"
+      },
+      "detergent_low": {
+        "name": "Detergent low"
+      },
+      "softener_low": {
+        "name": "Softener low"
+      },
+      "drum_clean_due": {
+        "name": "Drum cleaning due"
+      },
+      "remote_control": {
+        "name": "Remote control allowed"
+      }
+    },
+    "switch": {
+      "running": {
+        "name": "Running"
+      },
+      "auto_door_open": {
+        "name": "Auto door open"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "child_lock": {
+        "name": "Child lock"
+      },
+      "preheat": {
+        "name": "Pre-heat"
+      },
+      "extra_rinse": {
+        "name": "Extra rinse"
+      },
+      "speed_wash": {
+        "name": "Speed wash"
+      },
+      "auto_dose": {
+        "name": "Auto dosing"
+      }
+    },
+    "number": {
+      "rinse_aid_level": {
+        "name": "Rinse aid level"
+      },
+      "water_softener": {
+        "name": "Water softener"
+      },
+      "target_temperature": {
+        "name": "Target temperature"
+      },
+      "cook_time": {
+        "name": "Cook time"
+      },
+      "probe_temperature": {
+        "name": "Food probe target"
+      },
+      "delay_start": {
+        "name": "Delayed start"
+      }
+    },
+    "select": {
+      "cook_mode": {
+        "name": "Cooking mode",
+        "state": {
+          "conventional": "Conventional",
+          "convection": "Convection",
+          "conventional_fan": "Conventional with fan",
+          "radiant_heat": "Radiant heat",
+          "double_grill_fan": "Double grill with fan",
+          "double_grill": "Double grill",
+          "pizza": "Pizza",
+          "bottom_heat": "Bottom heat",
+          "eco": "Eco",
+          "fermentation": "Fermentation",
+          "keep_warm": "Keep warm",
+          "defrost": "Defrost"
+        }
+      },
+      "wash_temperature": {
+        "name": "Wash temperature"
+      },
+      "spin_speed": {
+        "name": "Spin speed"
+      },
+      "dry_level": {
+        "name": "Drying level"
+      },
+      "program": {
+        "name": "Programme",
+        "state": {
+          "cotton": "Cotton",
+          "cotton_eco": "Cotton eco",
+          "quick": "Quick",
+          "mix": "Mixed",
+          "synthetic": "Synthetics",
+          "wool": "Wool",
+          "baby": "Baby",
+          "sport": "Sport",
+          "rinse_spin": "Rinse + spin",
+          "spin_only": "Spin only",
+          "drum_clean": "Drum clean",
+          "steam_wash": "Steam",
+          "wash_dry": "Wash + dry",
+          "dry": "Dry",
+          "my_cycle": "My cycle"
+        }
+      },
+      "program_select": {
+        "name": "Programme",
+        "state": {
+          "auto": "Auto",
+          "intensive": "Intensive",
+          "universal": "Universal",
+          "eco": "Eco",
+          "delicate": "Delicate",
+          "90mins": "90 minutes",
+          "rapid": "Rapid",
+          "soak": "Soak",
+          "party": "Party",
+          "hygiene": "Hygiene",
+          "self_cleaning": "Self-cleaning"
+        }
+      },
+      "extra_option": {
+        "name": "Extra option",
+        "state": {
+          "none": "None",
+          "extra_drying": "Extra drying",
+          "half_load": "Half load",
+          "power_wash": "Intensive wash",
+          "turbo_speed": "Speed up"
+        }
+      },
+      "wash_zone": {
+        "name": "Wash zone",
+        "state": {
+          "upper": "Upper basket",
+          "lower": "Lower basket",
+          "both": "Both baskets"
+        }
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "resume": {
+        "name": "Resume"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "stop": {
+        "name": "Stop"
+      },
+      "standby": {
+        "name": "Standby"
+      },
+      "start_cycle": {
+        "name": "Start cycle"
+      }
+    }
+  },
+  "exceptions": {
+    "door_open": {
+      "message": "The dishwasher will not start while the door is open."
+    },
+    "write_blocked": {
+      "message": "The appliance cannot accept this change right now."
+    },
+    "no_cook_mode": {
+      "message": "Select a cooking mode before starting the oven."
+    },
+    "no_program": {
+      "message": "Select a programme before starting the dishwasher."
+    },
+    "no_loaded_account": {
+      "message": "No HolaBrain account is loaded."
+    },
+    "account_not_loaded": {
+      "message": "That appliance belongs to an account that is not loaded."
+    },
+    "unknown_device": {
+      "message": "There is no device with id {device_id}."
+    },
+    "not_an_appliance": {
+      "message": "Device {device_id} is not a HolaBrain appliance."
+    },
+    "scan_failed": {
+      "message": "Could not scan the account {account}: {error}"
+    },
+    "rename_failed": {
+      "message": "Could not rename the appliance: {error}"
+    },
+    "unbind_not_confirmed": {
+      "message": "Removing an appliance from the account cannot be undone from Home Assistant. Enable confirm to proceed."
+    },
+    "unbind_failed": {
+      "message": "Could not remove the appliance from the account: {error}"
+    },
+    "unbind_refused": {
+      "message": "The account did not remove the appliance; it is still bound."
+    }
+  },
+  "issues": {
+    "unsupported_category": {
+      "title": "Unsupported appliance type ({device_type})",
+      "description": "Your HolaBrain account contains an appliance this version does not support yet, so it has no entities: type {device_type}, model {models}.\n\nPlease open an issue and attach this integration's diagnostics. They carry everything needed to add support, with account and appliance identifiers removed."
+    }
+  }
+}

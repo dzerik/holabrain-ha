@@ -1,0 +1,172 @@
+name: Add an appliance to the HCL
+description: Report a new appliance, confirm an experimental category on real hardware, or correct an existing mapping.
+title: "[Device]: "
+labels: ["device support"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only the dishwasher category has been verified against real hardware; the others are
+        modelled from the cloud protocol. Reports here are what turns 🧪 *modelled* into
+        ✅ *verified* in the
+        [hardware compatibility list](https://github.com/dzerik/holabrain-ha/blob/main/docs/hcl.md).
+
+        Two things make a report actionable: the **diagnostics dump** — it carries the
+        appliance record, the capability profile and every status key your appliance
+        reports — and **what you actually checked**. Partial reports are welcome; they land
+        in the list as ❓ with exactly that scope.
+
+        [How to collect diagnostics, and what to strip first](https://github.com/dzerik/holabrain-ha/blob/main/docs/diagnostics.md).
+
+  - type: dropdown
+    id: report_type
+    attributes:
+      label: What is this report about
+      options:
+        - My appliance is not supported at all (no entities, or a repair issue about an unsupported category)
+        - My appliance is in an experimental category and works — confirming it
+        - My appliance is in a supported category but some values or controls are wrong
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Appliance category
+      options:
+        - Dishwasher (0xE1)
+        - Lamp (0x13)
+        - Water heater (0xE2)
+        - Air conditioner (0xAC)
+        - Oven (0xB1)
+        - Washing machine (0xDB)
+        - Something else / unknown
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model code (sn8)
+      description: >-
+        The 8-character model code. It is shown as **Model** on the appliance's device page,
+        and as `model` in the diagnostics dump.
+      placeholder: "760EY179"
+    validations:
+      required: true
+
+  - type: input
+    id: device_type
+    attributes:
+      label: Device type (0x..)
+      description: >-
+        The category token the cloud reports. `device_type` in the diagnostics dump; an
+        unsupported appliance also raises a repair issue naming it
+        (Settings → Devices & services → Repairs).
+      placeholder: "0xE1"
+    validations:
+      required: true
+
+  - type: input
+    id: marketing_name
+    attributes:
+      label: Brand and marketing name
+      description: What is printed on the appliance and on its box — this is the "Brand / name" column of the list.
+      placeholder: "Weissgauff BDW 6134 D, built-in dishwasher"
+    validations:
+      required: false
+
+  - type: input
+    id: versions
+    attributes:
+      label: Integration and Home Assistant versions
+      description: The version the appliance was tested with — a mapping is only ever confirmed for a known version.
+      placeholder: "integration 0.10.1, Home Assistant 2025.7.1"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: What you checked
+      description: >-
+        The list a category has to pass to be marked ✅, in order — a wrong reading
+        invalidates everything below it. Tick only what you actually did; the details go in
+        the next two fields.
+      options:
+        - label: Entities exist after setup and are not `unavailable`.
+          required: false
+        - label: Readings match the appliance's own display, including while a cycle runs.
+          required: false
+        - label: Feature gating is right — no control for something the unit lacks, nothing missing that it has.
+          required: false
+        - label: Controls take effect on the hardware, and the value is still correct a minute later.
+          required: false
+        - label: Push works — changing something on the appliance itself shows up within seconds.
+          required: false
+
+  - type: textarea
+    id: works
+    attributes:
+      label: What works
+      description: >-
+        Which readings are correct and which commands the appliance actually performs.
+        Naming the entities is enough — e.g. "programme select, start button, door sensor,
+        remaining time".
+    validations:
+      required: true
+
+  - type: textarea
+    id: broken
+    attributes:
+      label: What does not work
+      description: >-
+        Missing or extra entities, wrong readings, commands the appliance ignores. For a
+        wrong reading, say what the appliance's display showed at the same moment — a
+        screenshot of both settles a scaling question in one image.
+      placeholder: |
+        - "Remaining time" counts down from 255 minutes on a 30-minute programme.
+        - The appliance has a hot-water inlet; there is no entity for it.
+        - The "Auto door open" switch does nothing, and the model has the feature.
+    validations:
+      required: false
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        **Required.** Settings → Devices & services → **HolaBrain** → ⋮ →
+        **Download diagnostics** for the whole account, or the same menu on the appliance's
+        device page for just that appliance.
+
+        An unsupported appliance has no device page — use the account-level dump, which
+        lists every appliance on the account including the ones with no entities.
+
+        The dump is redacted before it is written (credentials, e-mail, serial, MAC, Wi-Fi),
+        and appliance ids become stable pseudonyms, so it is safe to attach. Please still
+        skim the appliance name and the `raw` block first — see
+        [docs/diagnostics.md](https://github.com/dzerik/holabrain-ha/blob/main/docs/diagnostics.md).
+
+        A dump taken **while the appliance is running** is worth far more than an idle one:
+        most status keys only appear during a cycle. Both is ideal — attach the file, or
+        paste it here.
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: appliance_state
+    attributes:
+      label: What the appliance was doing when the dump was taken
+      placeholder: "Running the eco programme, 40 minutes left, door closed, salt indicator lit."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: testing
+    attributes:
+      label: Follow-up
+      options:
+        - label: I can run a patched version against this appliance and report back.
+          required: false

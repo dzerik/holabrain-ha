@@ -1,0 +1,85 @@
+name: Feature request
+description: Suggest a capability the integration does not have yet.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Support for a specific appliance belongs in the **Appliance support** template
+        instead — it asks for the details a mapping needs.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the existing issues and this is not already requested.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the integration
+      options:
+        - Entities and platforms (sensor, switch, climate, ...)
+        - Setup, sign-in and options
+        - Actions (services)
+        - Sidebar panel or Lovelace card
+        - Cloud client core (aiodollin)
+        - Documentation
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        What you are trying to do and where it breaks down today. Describe the situation,
+        not the implementation — an automation you cannot write, a value you cannot read,
+        a step you have to do in the vendor app.
+      placeholder: >-
+        I want to be notified when the dishwasher's salt runs out, but there is no entity
+        for it on my model even though the appliance shows the indicator.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What you would like to happen
+      description: >-
+        If it involves an entity, say which platform and what its states would be. If it
+        involves an action, sketch the YAML you would like to be able to write.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: >-
+        Template sensors, automations, doing it in the vendor app — and why they are not
+        enough.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >-
+        Affected appliance category and model code (sn8) if the request is specific to one,
+        screenshots, links to how other integrations solve it.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this.
+          required: false

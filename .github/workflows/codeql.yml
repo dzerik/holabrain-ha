@@ -1,0 +1,79 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so newly published queries are applied to code that has not changed.
+    - cron: "27 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  visibility:
+    # Code scanning results can only be uploaded from a public repository (or a private
+    # one with GitHub Advanced Security). The repository metadata is queried instead of
+    # read from github.event, because scheduled runs carry no event payload.
+    runs-on: ubuntu-latest
+    outputs:
+      analyzable: ${{ steps.check.outputs.analyzable }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          analyzable=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.private == false')
+          echo "analyzable=${analyzable}" >>"$GITHUB_OUTPUT"
+          if [ "${analyzable}" != "true" ]; then
+            echo "::notice::Repository is private — skipping CodeQL until it is published."
+          fi
+
+  analyze:
+    needs: visibility
+    if: needs.visibility.outputs.analyzable == 'true'
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      # Required by the CodeQL action to read workflow run status.
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The integration itself, including the standalone aiodollin core.
+          - language: python
+            build-mode: none
+          # The dashboard panel and the Lovelace card (custom_components/holabrain/www).
+          - language: javascript-typescript
+            build-mode: none
+          # The workflows in this directory: catches expression injection and
+          # over-broad token permissions.
+          - language: actions
+            build-mode: none
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

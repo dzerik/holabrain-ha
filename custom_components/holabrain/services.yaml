@@ -1,0 +1,50 @@
+refresh_capabilities:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: holabrain
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: holabrain
+
+scan_devices:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: holabrain
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: holabrain
+
+rename_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: holabrain
+    name:
+      required: true
+      selector:
+        text:
+
+unbind_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: holabrain
+    confirm:
+      required: true
+      default: false
+      selector:
+        boolean:

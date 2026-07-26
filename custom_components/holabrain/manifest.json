@@ -1,0 +1,22 @@
+{
+  "domain": "holabrain",
+  "name": "HolaBrain",
+  "codeowners": [
+    "@dzerik"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "network"
+  ],
+  "documentation": "https://github.com/dzerik/holabrain-ha",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/dzerik/holabrain-ha/issues",
+  "requirements": [
+    "httpx>=0.27",
+    "paho-mqtt>=2.1",
+    "cryptography>=42.0"
+  ],
+  "version": "0.11.0"
+}

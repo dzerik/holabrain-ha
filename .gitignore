@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets — never commit account tokens, certificates or private keys
+secrets/
+*.pem
+*.key
+.env
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Test virtualenvs
+.venv*/
+
+# JetBrains project file
+*.iml

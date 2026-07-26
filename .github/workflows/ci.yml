@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Nothing in this workflow writes to the repository or talks to a third party, so the
+# token stays read-only and no secret is exposed to any step.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Home Assistant pins the Python version it supports, and
+      # pytest-homeassistant-custom-component installs Home Assistant itself, so a
+      # version matrix here would only ever hold a single usable entry.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_test.txt
+
+      - name: Ruff
+        run: ruff check custom_components tests scripts
+
+      # Run first and on its own: this is the architectural invariant that keeps
+      # aiodollin extractable as a standalone package, and it fails in seconds.
+      - name: Core isolation (aiodollin must not import Home Assistant)
+        run: pytest tests/aiodollin/test_no_ha_imports.py --no-cov
+
+      - name: Tests
+        run: pytest
+
+  translations:
+    # strings.json is the source of truth; every language has to render exactly its
+    # keys. Needs no dependencies, so it reports without waiting for the test job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Check translation keys
+        run: python scripts/check_translations.py
+
+  hassfest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    # HACS can only read publicly available information, so its validation cannot run
+    # against a private repository. The repository is otherwise HACS-ready (hacs.json,
+    # in-repo brand assets, description and topics), and this job starts enforcing that
+    # automatically the moment the repository is published.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hacs/action@main
+        with:
+          category: integration

@@ -1,0 +1,250 @@
+# Home Assistant integration quality scale — self-assessment.
+#
+# HolaBrain is a custom integration, so Home Assistant reports its quality scale as
+# "custom" and never reads this file; the checklist is tracked here anyway, because the
+# rules are what keep an integration predictable for its users, and because the file is the
+# honest answer to "how close is this to core standards?".
+#
+# Every rule below is one of: done | todo | exempt.
+# Assessed against https://developers.home-assistant.io/docs/core/integration-quality-scale/
+
+rules:
+  # --- Bronze --------------------------------------------------------------------------
+  action-setup:
+    status: done
+    comment: |
+      Actions are registered in async_setup (__init__.py), so an automation referencing one
+      validates even while no account is loaded; the call itself then raises a translated
+      ServiceValidationError.
+  appropriate-polling:
+    status: done
+    comment: |
+      60 s fallback poll, and it is skipped entirely while the push channel is delivering
+      (coordinator._push_is_healthy) — polling costs an account request, and account
+      requests compete with the vendor app for the single allowed session.
+  brands:
+    status: exempt
+    comment: |
+      home-assistant/brands only accepts core integrations. The brand assets ship in the
+      repository (custom_components/holabrain/brand) for HACS.
+  common-modules:
+    status: done
+    comment: coordinator.py, entity.py, helpers.py and the declarative registry.py.
+  config-flow-test-coverage:
+    status: done
+    comment: tests/test_config_flow.py covers user, reauth, reconfigure and the options flow.
+  config-flow:
+    status: done
+    comment: |
+      UI setup with data_description on every field; the entry stores connection data only
+      and the panel toggle lives in options.
+  dependency-transparency:
+    status: done
+    comment: |
+      httpx, paho-mqtt and cryptography, all published on PyPI and pinned by lower bound in
+      the manifest. The cloud client itself (aiodollin) is vendored in-tree, dependency-free
+      and readable in the same repository.
+  docs-actions:
+    status: done
+    comment: |
+      All four actions have a name, a description and per-field descriptions in the UI, and
+      are covered in docs/accounts.md (scan, rename, unbind) and docs/capabilities.md
+      (refresh).
+  docs-conditions:
+    status: exempt
+    comment: the integration provides no conditions.
+  docs-high-level-description:
+    status: done
+    comment: README.md
+  docs-installation-instructions:
+    status: done
+    comment: README.md "Installation (HACS)" and info.md.
+  docs-removal-instructions:
+    status: done
+    comment: README.md "Removing the integration".
+  docs-triggers:
+    status: exempt
+    comment: the integration provides no triggers.
+  entity-event-setup:
+    status: done
+    comment: |
+      Every entity derives from CoordinatorEntity; the only extra subscription is the
+      platform-level one in helpers.async_add_with_discovery, released via
+      entry.async_on_unload.
+  entity-unique-id:
+    status: done
+    comment: "<appliance id>_<status key>, assigned in HolabrainEntity."
+  has-entity-name:
+    status: done
+  runtime-data:
+    status: done
+    comment: HolabrainData on entry.runtime_data, typed through HolabrainConfigEntry.
+  test-before-configure:
+    status: done
+    comment: the config flow signs in before creating the entry.
+  test-before-setup:
+    status: done
+    comment: |
+      async_config_entry_first_refresh; the coordinator maps AuthError to
+      ConfigEntryAuthFailed and every other cloud failure to ConfigEntryNotReady.
+  unique-config-entry:
+    status: done
+    comment: unique id is the account, and the flow aborts on a duplicate.
+
+  # --- Silver --------------------------------------------------------------------------
+  action-exceptions:
+    status: done
+    comment: |
+      ServiceValidationError with translation keys for anything the user can correct;
+      cloud failures carry the cloud's own message as a placeholder.
+  config-entry-unloading:
+    status: done
+    comment: |
+      Platforms, the push connection, the revalidation timer, the HTTP client and the panel
+      are all released in async_unload_entry.
+  docs-configuration-parameters:
+    status: done
+    comment: README.md "Options" describes the panel toggle, the scan and the local search.
+  docs-installation-parameters:
+    status: done
+    comment: |
+      The four sign-in fields carry data_description in the UI and are described in
+      README.md.
+  entity-unavailable:
+    status: done
+    comment: |
+      HolabrainEntity.available combines coordinator success with the appliance's own
+      online flag, so an appliance unplugged behind a working account goes unavailable.
+  integration-owner:
+    status: done
+  log-when-unavailable:
+    status: todo
+    comment: |
+      The coordinator's built-in once-per-outage logging covers a total failure. A single
+      appliance that stops answering while the rest of the account is fine is only logged
+      at debug level; that case should log once at info and once on recovery.
+  parallel-updates:
+    status: done
+    comment: |
+      PARALLEL_UPDATES = 0 on every platform: reads all come from the coordinator and a
+      write is a single instruction the cloud serialises anyway.
+  reauthentication-flow:
+    status: done
+    comment: |
+      Triggered by ConfigEntryAuthFailed; the flow re-validates against the same account
+      and drops the stored session so the reload signs in again.
+  test-coverage:
+    status: todo
+    comment: |
+      95% overall, but the rule asks for it per module and light.py, water_heater.py,
+      panel.py and store.py are still below that. Those paths are modelled from the cloud
+      protocol and not yet verified on hardware, which is also why they are hard to test
+      meaningfully rather than just for the number.
+
+  # --- Gold ----------------------------------------------------------------------------
+  devices:
+    status: done
+    comment: one device per appliance, with model and firmware from the account record.
+  diagnostics:
+    status: done
+    comment: |
+      diagnostics.py, entry-level and per device. Appliance ids are replaced by a stable
+      hash and every credential-ish key is redacted, which is what makes it safe to ask a
+      user to attach the dump to an issue about an unsupported appliance.
+  discovery-update-info:
+    status: exempt
+    comment: |
+      Nothing in the config entry is network-addressed — the integration talks to the
+      vendor cloud, and the appliance's LAN address is never used for control.
+  discovery:
+    status: exempt
+    comment: |
+      Appliances answer a UDP broadcast on the LAN, and the options flow uses that to offer
+      unbound appliances. That is not one of Home Assistant's discovery mechanisms
+      (zeroconf/SSDP/DHCP), and the appliances announce nothing on any of them.
+  docs-data-update:
+    status: done
+    comment: README.md "How status arrives" and docs/accounts.md.
+  docs-examples:
+    status: done
+    comment: README.md "Automation examples".
+  docs-known-limitations:
+    status: done
+    comment: |
+      docs/accounts.md (one session per account, why pairing from Home Assistant is
+      practically impossible) and the hardware-verification markers in docs/entities.md.
+  docs-supported-devices:
+    status: done
+    comment: docs/entities.md, per category, with what is verified on hardware.
+  docs-supported-functions:
+    status: done
+    comment: docs/entities.md lists the entities each category produces.
+  docs-troubleshooting:
+    status: done
+    comment: docs/capabilities.md "Troubleshooting" and README.md.
+  docs-use-cases:
+    status: done
+    comment: README.md "Features" and the automation examples.
+  dynamic-devices:
+    status: done
+    comment: |
+      helpers.async_add_with_discovery re-runs every platform's builder when the inventory
+      changes, so an appliance added by a scan appears without a restart.
+  entity-category:
+    status: done
+    comment: |
+      Counters and fault codes are diagnostic; appliance settings (rinse-aid dose, water
+      softener, child lock, auto dosing, auto door open) are configuration.
+  entity-device-class:
+    status: done
+    comment: |
+      Device classes wherever one fits; enum sensors declare their options so the state is
+      validated rather than free text.
+  entity-disabled-by-default:
+    status: done
+    comment: lifetime counters and the remote-control flag are disabled by default.
+  entity-translations:
+    status: done
+    comment: |
+      Every entity has a translation_key and no _attr_name; states of enum entities are
+      translated too. en, ru, be, kk, uz.
+  exception-translations:
+    status: done
+    comment: every ServiceValidationError and HomeAssistantError uses a translation key.
+  icon-translations:
+    status: done
+    comment: icons.json; no entity sets _attr_icon.
+  reconfiguration-flow:
+    status: done
+    comment: |
+      async_step_reconfigure updates credentials, region and country in place, and refuses
+      to repoint an entry at a different account.
+  repair-issues:
+    status: done
+    comment: |
+      An appliance category the integration does not model yet raises a repair issue naming
+      the category token — otherwise such an appliance is completely silent.
+  stale-devices:
+    status: done
+    comment: |
+      Devices the account no longer lists are removed, both when a scan notices it and by
+      reconciling the registry against the inventory at setup; async_remove_config_entry_device
+      allows a manual delete only for an appliance that is really gone.
+
+  # --- Platinum ------------------------------------------------------------------------
+  async-dependency:
+    status: done
+    comment: |
+      aiodollin is async throughout. The one exception is paho-mqtt, which owns its own
+      network thread; every call into it is made from the executor and its callbacks hop
+      back onto the event loop.
+  inject-websession:
+    status: done
+    comment: |
+      DollinClient.create takes the httpx.AsyncClient; the Home Assistant side builds it
+      from Home Assistant's cached TLS context (http_client.py).
+  strict-typing:
+    status: todo
+    comment: |
+      The code is fully annotated but mypy --strict is not enforced in CI, and aiodollin
+      does not ship a py.typed marker yet.

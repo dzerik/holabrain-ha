@@ -1,0 +1,349 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.11.0] - 2026-07-26
+
+First public release.
+
+### Added
+- **Diagnostics** — download a report from the integration's menu and attach it to an issue.
+  Account, credentials, tokens and serials are redacted; appliance ids become a stable
+  pseudonym so a report stays internally consistent without identifying the hardware.
+- **Repair issues** for appliance categories the integration does not support yet, naming the
+  type and model so they can be added instead of being silently ignored.
+- **Reconfiguration flow** — a rotated password or a moved region is fixed in place, without
+  deleting the integration and losing entity history.
+- Entity categories, icon translations and translated action errors; every action is
+  documented in the UI in all five languages.
+- Community and release infrastructure: issue forms (including one that feeds the hardware
+  compatibility list), contributing guide, code of conduct, security policy, Dependabot,
+  CodeQL, and a release workflow that publishes a named archive with a version check.
+- Documentation: hardware compatibility list, automation examples, troubleshooting, and a
+  guide to collecting diagnostics.
+
+### Changed
+- Actions are registered once at startup rather than per config entry, so an automation
+  referencing them keeps validating while the account is unloaded.
+- `PARALLEL_UPDATES` is declared explicitly on every platform.
+
+
+### Fixed
+- **A password changed elsewhere is now noticed.** An account whose credentials the cloud
+  refuses starts Home Assistant's re-authentication flow instead of failing every poll with
+  a debug message while the entities quietly freeze on their last value.
+- **A session held by the vendor app is no longer mistaken for bad credentials.** It is
+  reported as a distinct condition, so Home Assistant waits for the session to come back
+  instead of asking for a password that is perfectly valid.
+- **An outage stops looking like fresh data.** A single failed poll is still absorbed (the
+  cloud fails one query several times a day), but three in a row now mark the entities
+  unavailable rather than serving hours-old values as current.
+- **A throttled account is no longer hammered.** A rate-limit answer ends the poll cycle
+  instead of asking for the remaining appliances anyway.
+- **The TLS trust store is no longer read on the event loop.** The HTTP client is built from
+  Home Assistant's pre-warmed context, so setting up, reloading and every config-flow step
+  stop performing blocking I/O in the loop.
+- **A setup that fails after the push channel was opened no longer leaks it.** Home
+  Assistant retries every 30 seconds; each attempt used to leave a TLS connection, a network
+  thread and a timer behind.
+- **The push connection says goodbye properly**, so the broker releases the session
+  immediately instead of holding it until it times out and refusing the reconnect after a
+  reload.
+- **The push client's private key is written owner-readable only**, and both it and the
+  capability cache are deleted when the account is removed instead of staying in
+  `.storage` forever.
+- **An appliance the account never named gets a readable device name** instead of turning
+  every one of its entities into " door", " temperature" and so on.
+- One unparsable numeric field in the account's device list no longer fails the whole
+  inventory read — and with it the setup of every appliance on the account.
+- Account e-mail addresses are no longer written to the log; entries are referenced by id.
+
+### Added
+- A config-entry migration hook that refuses an entry written by a newer version of the
+  integration, instead of loading data it cannot interpret after a downgrade.
+- **Diagnostics**, for the whole account and for a single appliance. The dump carries the
+  raw account record, the resolved capability profile and every status key the appliance
+  reports — which is what makes a report about an unsupported or misbehaving appliance
+  actionable — while the account, the password, the session and the appliance identifiers
+  are redacted. Appliance ids are replaced by a stable pseudonym, so a device report can
+  still be matched to the account report and to a later report from the same user.
+- **An appliance the integration cannot model yet raises a repair issue** naming its
+  category and model, instead of being silently skipped. Such an appliance produces no
+  device and no entity, so nothing else would ever mention it.
+- **Reconfigure.** A rotated password, a moved region or a corrected country can now be
+  fixed in place, without deleting the account and with it every entity's history. The
+  entry refuses to be repointed at a different account.
+- Home Assistant actions are registered once, at startup: an automation referencing one now
+  validates even while no account is loaded, and the call explains itself instead of failing
+  with "action not found".
+- `scan_devices`, `rename_device` and `unbind_device` are described in the UI (they showed
+  up as bare slugs), in all five languages, and every sign-in field now carries a
+  description.
+- Destructive actions are covered by tests: an unbind the account did not actually perform
+  is now reported as a failure instead of removing the device from Home Assistant anyway.
+- **A compatibility list** (`docs/hcl.md`): which appliance, by category and model code, has
+  been verified on real hardware, which is only modelled from the protocol and what can go
+  wrong with the latter, plus what a tester should check to move a category up.
+- **A diagnostics guide** (`docs/diagnostics.md`): how to download the dump and what it
+  contains, what is already redacted from it, how to enable debug logging, where to find the
+  model and category of an appliance, what a compatibility report needs — and what must never
+  be attached to a public issue.
+
+### Changed
+- **Entities are categorised.** Lifetime counters and fault codes are diagnostic, appliance
+  settings (rinse-aid dose, water softener, child lock, auto dosing, auto door open) are
+  configuration, so the device page shows the controls that are actually used day to day.
+- **Icons moved to icon translations** (`icons.json`), which is what lets a user override
+  them per entity and what the panel now resolves through `ha-state-icon`.
+- Every platform declares `PARALLEL_UPDATES = 0`: reads come from the coordinator and a
+  write is a single instruction the cloud serialises anyway.
+- Action failures are translatable rather than hard-coded English.
+- `quality_scale.yaml` records the integration's self-assessment against Home Assistant's
+  integration quality scale, rule by rule.
+
+## [0.10.1] - 2026-07-26
+
+### Changed
+- The *Add an appliance* step now states plainly when it can work. Hardware testing settled
+  the question: an appliance that is on the network but not in its setup mode is known to the
+  cloud yet will not be handed over, and pressing its pairing button clears the Wi-Fi
+  settings and takes it off the network entirely — so the two states never overlap. The one
+  realistic case is an appliance the mobile app has just joined to Wi-Fi but failed to add.
+  The step says so, and its error tells the user to use the app rather than to keep pressing
+  the pairing button.
+- The Wi-Fi details are optional: the cloud returns the appliance's own verification code, so
+  they are only needed if a claim is refused. The field is labelled as the router's MAC
+  address rather than the bare term "BSSID", which reads like a network name.
+
+
+## [0.10.0] - 2026-07-26
+
+### Added
+- **Appliances are found on the local network.** They answer a broadcast with their own
+  serial, model and category without any authentication, so adding one no longer means
+  reading a 32-character code off a label and retyping it — the single most error-prone step
+  of the flow. The search costs no account request at all and therefore cannot sign the
+  vendor's mobile app out.
+- **Appliances already on the account are filtered out**: the id an appliance announces is
+  the same one the account uses, so only genuinely new ones are offered.
+- **The Wi-Fi network is remembered** — BSSID and password are pre-filled for the next
+  appliance instead of being typed again.
+- "Nothing answered on the network", "not offering itself" and "serial unknown" are now
+  three distinct outcomes, because they need three different actions from the user.
+
+
+## [0.9.0] - 2026-07-26
+
+### Added
+- **Adding an appliance to the account from Home Assistant** — *Configure → Add an
+  appliance*. Claims an appliance that is already on Wi-Fi and in its setup mode, given its
+  serial number and the Wi-Fi network's BSSID and password. Joining an appliance to Wi-Fi in
+  the first place still needs the mobile app: those credentials travel over a short-range
+  radio link and have no cloud path at all.
+  - "Serial unknown" and "appliance is not offering itself" are reported as different
+    errors, because they need different actions from the user.
+  - The serial is encrypted with the caller's own session before it leaves the process, so a
+    captured request cannot be replayed by anyone else.
+- `holabrain.rename_device` — renames the appliance in the account, so the vendor app shows
+  the new name too.
+- `holabrain.unbind_device` — removes an appliance from the account. Refuses unless called
+  with `confirm: true`: putting an appliance back needs its own pairing button.
+- Standalone binding API and pairing primitives in the core (`BindingApi`,
+  `derive_verification_code`, `encrypt_serial`), fully covered by tests.
+
+
+## [0.8.0] - 2026-07-26
+
+### Added
+- **Starting a dishwasher cycle from Home Assistant.** The appliance accepts a wash only as
+  one whole instruction, so a programme select, an extra-option select, a wash-zone select
+  and a *Start cycle* button compose it: the selects stage their values locally and the
+  button submits them together.
+  - Only the programmes the model's own table lists are offered, and only the extras it
+    advertises; a model without the alternating-wash option has no zone control and the key
+    is left out of the payload entirely rather than sent with a default.
+  - Starting without a programme, or with the door open, is refused with a clear message
+    instead of spending an account request on a command the appliance will reject.
+  - Pressing start without choosing anything repeats what the appliance currently shows,
+    which is how "run the same cycle again" works on the appliance's own panel.
+- Translated into every supported language.
+
+
+## [0.7.2] - 2026-07-26
+
+### Fixed
+- An appliance unbound while Home Assistant was **down** is now cleared on the next startup.
+  The coordinator never sees such a device disappear — it simply never appears — so without
+  reconciling the registry against the first inventory read it stayed forever as an
+  unavailable leftover that no scan could remove.
+- An appliance unbound in the vendor app is now **deleted** when a scan confirms it is gone,
+  instead of being left behind as a permanently unavailable device with a dozen dead entities
+  that still show up in pickers, dashboards and automations. Deletion only follows a
+  *successful* inventory read — a failed scan can never be mistaken for an empty account.
+- Devices can also be removed by hand from the UI, but only once the account no longer lists
+  them: deleting a live appliance would just bring it back on the next scan, losing its name,
+  area and entity ids.
+
+
+## [0.7.0] - 2026-07-26
+
+### Changed
+- **Scanning the account is now explicit.** The inventory was re-read on a timer, which is
+  the one operation that always needs the account session — and claiming it signs the
+  vendor's mobile app out. Nothing in routine operation does that any more.
+
+### Added
+- *Scan for appliances* step in the integration options, which states plainly that the
+  mobile app will be signed out before doing anything, and reports how many appliances were
+  added or removed.
+- The same action in the panel header, behind a confirmation dialog with the same warning,
+  translated into every supported language.
+- `holabrain.scan_devices` service for automations.
+
+### Fixed
+- The options flow no longer ends in a traceback when the cloud fails mid-scan; it reports
+  the failure and leaves the existing appliances untouched.
+
+
+## [0.6.0] - 2026-07-26
+
+### Changed
+- **The integration no longer competes with the vendor app for the account session.** The
+  cloud allows one session per account, so any request Home Assistant makes can hit a
+  session the app has taken over — and recovering from that takes the session back, which
+  makes the app log in again, and so on. Status now arrives over the push channel, which
+  authenticates with its own certificate and is unaffected by session ownership, and the
+  periodic poll is skipped entirely while push is delivering. Heartbeats are subscribed too,
+  so an idle appliance still counts as "push is alive".
+- Reclaiming a session that was taken over is rate limited with a growing cool-down, so two
+  clients can no longer log each other out in a loop. An isolated takeover much later starts
+  from zero again.
+- A rejected session is dropped from storage instead of being replayed after a restart.
+
+### Added
+- `docs/accounts.md` explaining the one-session-per-account behaviour and what to expect.
+- Tests for session takeover (fake clock) and for push-first polling (cloud-call budget).
+
+
+## [0.5.0] - 2026-07-26
+
+### Added
+- **Washing machine** category (composite): programme / temperature / spin / drying selects,
+  power and start-pause switches, extra rinse, speed wash and automatic dosing, delayed
+  start, plus status, phase, fault and consumable-level entities — each gated by its own
+  capability.
+- Command and status routing by the appliance's announced protocol, so families that use the
+  second command dialect work through the same client.
+- Documentation: `info.md` for HACS, `docs/entities.md` and `docs/capabilities.md`.
+
+### Changed
+- Binary sensors can now be registered disabled by default, used for diagnostic flags.
+- Washer strings translated into every supported language.
+
+
+### Added
+- **Optional panel and dashboard card** — a no-build frontend (vendored Lit, served
+  from `custom_components/holabrain/www`) that works purely on top of the standard
+  entities: it reads `hass.states` and calls services, never the cloud API.
+  - Sidebar panel, opt-in per config entry via **Configure → Show the HolaBrain
+    panel in the sidebar**; the static assets are always served so the card stays
+    usable with the panel switched off.
+  - Dishwasher card: derived machine status, programme, time remaining, wash-stage
+    strip, fault banner, door and consumable badges, power / start-pause actions,
+    rinse-aid and softener gears, lifetime statistics.
+  - Generic card for every other category, built from the entity registry, so a new
+    appliance is usable in the panel without frontend changes.
+  - `HolabrainDeviceBase` — host-agnostic base class (device discovery, role → entity
+    resolution, state accessors, service calls) shared by the panel and the
+    `custom:holabrain-card` Lovelace card; the card reuses the panel components
+    unchanged.
+- **Capability resolution for every appliance family.** Capabilities are no longer read from
+  a single cloud dictionary; each family is resolved by an ordered chain of strategies whose
+  results merge into one profile:
+  - `DictGetResolver` — the cloud capability dictionary (dishwashers), now also
+    understanding the object-shaped payload that narrows the programme list;
+  - `BitfieldResolver` — the packed capability descriptor air conditioners carry in their
+    metadata, decoded into feature flags plus the supported temperature range;
+  - `StaticResolver` — per-model tables for ovens, washers, water heaters and lamps;
+  - `StatusPresenceResolver` — features that are only visible as reported status keys
+    (steam tank, food probe, auto-dosing, dual tank, fan-light fixtures).
+  Unknown appliance types fall back to presence-only resolution instead of no profile.
+- **Capability cache refresh.** Profiles are cached in Home Assistant storage (migrated out
+  of the config entry, which now holds credentials only), revalidated on a 7-day TTL, and
+  extended lazily as devices report new status keys. The new `holabrain.refresh_capabilities`
+  service forces a refresh on demand; the config entry reloads itself whenever a refresh
+  changes what a device advertises, so entities appear and disappear correctly.
+- **Oven** (`0xB1`) — first composite category (Home Assistant has no oven platform):
+  - programme composer — cooking-mode `select` (12 programmes), target-temperature,
+    duration and food-probe `number`s, pre-heat `switch` and a **Start** `button` that
+    submits them as the single cook instruction the cloud accepts; temperature range,
+    step and pre-heat availability follow the selected programme;
+  - run control — resume / pause / stop / standby buttons and a child-lock switch whose
+    writes are refused while the door is open;
+  - readout — derived status sensor (offline / standby / pre-heating / pre-heated /
+    cooking / paused / finished / delayed), time remaining, working temperature, fault
+    code, plus door, fault, pre-heat, pre-heat-reached and steam-tank flags.
+  - Steam-tank and food-probe entities are capability-gated; models that report a single
+    packed status integer instead of discrete flags are read through it.
+- Registry descriptors for composite categories (`OvenConfig`, `OvenProgram`) and generic
+  spec options: `invert` / `uid` / packed-summary fallback on binary sensors, explicit enum
+  `options` and value transforms on sensors, and blocked-write guards on switches.
+- Roadmap: washer composite category; optional dashboard panel with card-reusable
+  components; hardware verification of the experimental categories.
+
+## [0.3.0] - 2026-07-26
+
+### Added
+- Native standard-platform mapping for categories that have one:
+  - **Lamp** (`0x13`) → `light` (on/off, brightness, tunable white 2700–6500 K, scenes).
+  - **Water heater** (`0xE2`) → `water_heater` (target temperature, eco/smart/high-temp
+    operation modes, on/off, heating-status sensor).
+  - **Air conditioner** (`0xAC`) → `climate` (off/auto/cool/heat/dry/fan-only, target
+    temperature, fan speeds).
+- Registry native-mapping descriptors (`LightConfig`, `WaterHeaterConfig`, `ClimateConfig`)
+  and an `iter_native` helper.
+
+### Notes
+- The lamp / water-heater / air-conditioner categories are modelled from the cloud protocol
+  and are structurally complete but not yet verified against physical hardware.
+
+## [0.2.0] - 2026-07-26
+
+### Added
+- Full cloud client in the standalone `aiodollin` core: signed HTTP transport (OEM + ToB),
+  AWS IoT cloud-push (MQTT) over mutual TLS, login/token management, and APIs for devices,
+  per-model capabilities and push-certificate minting.
+- `HolabrainCoordinator` — a single poll + push data pump with per-model capability
+  profiles fetched from the cloud and cached in the config entry.
+- Config flow (account login) and a declarative device registry.
+- **Dishwasher** category, fully modelled and capability-gated: wash-stage / program /
+  fault / time-remaining / temperature sensors, door + salt-low + rinse-aid-low binary
+  sensors, running and auto-door-open switches, and rinse-aid / water-softener numbers.
+  Entities appear only when the specific model advertises the feature.
+- Generic sensor / binary_sensor / switch / select / number / button platforms driven by
+  the registry, ready for further categories.
+- Tests: HTTP framing + error mapping, auth retry, capability parsing/gating, device
+  listing and control, and state push-merge semantics.
+
+## [0.1.0] - 2026-07-26
+
+### Added
+- Project scaffold and HACS metadata.
+- Standalone `aiodollin` core package skeleton (zero Home Assistant imports) with:
+  - request signing (`oem_sign`, `tob_sign`) and account password encryption,
+  - exception hierarchy (`DollinError` → `AuthError` / `NetworkError` / `ApiError` /
+    `RateLimitError`),
+  - cloud endpoint and region constants.
+- Test suite foundation: known-answer signing tests (including non-ASCII request bodies)
+  and a compliance test that fails if `aiodollin` ever imports Home Assistant.
+- CI: ruff, pytest, `hassfest`, and HACS validation.
+
+[Unreleased]: https://github.com/dzerik/holabrain-ha/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/dzerik/holabrain-ha/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/dzerik/holabrain-ha/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/dzerik/holabrain-ha/releases/tag/v0.1.0

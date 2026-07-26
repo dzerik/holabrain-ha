@@ -1,0 +1,165 @@
+name: Bug report
+description: Something in the integration does not work the way it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        Please do **not** report security problems here — use
+        [Security → Report a vulnerability](https://github.com/dzerik/holabrain-ha/security/advisories/new)
+        instead, as described in [SECURITY.md](https://github.com/dzerik/holabrain-ha/blob/main/SECURITY.md).
+
+        If a control is missing rather than broken, read
+        [docs/capabilities.md](https://github.com/dzerik/holabrain-ha/blob/main/docs/capabilities.md)
+        first — the entity set is built from what the cloud reports for your model. If your
+        appliance is in an experimental category, the
+        [**Add an appliance to the HCL**](https://github.com/dzerik/holabrain-ha/issues/new?template=device_support.yml)
+        form fits better than this one.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I am running the latest release of the integration, and the problem is still there.
+          required: true
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      description: >-
+        Settings → Devices & services → HolaBrain → the version is shown on the integration
+        card, and in `custom_components/holabrain/manifest.json`.
+      placeholder: "0.10.1"
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2025.7.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Installation method
+      options:
+        - HACS (custom repository)
+        - Manual copy into custom_components
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Appliance category
+      description: Which appliance is affected. Pick "not appliance-specific" for setup, panel or account problems.
+      options:
+        - Dishwasher (0xE1)
+        - Lamp (0x13)
+        - Water heater (0xE2)
+        - Air conditioner (0xAC)
+        - Oven (0xB1)
+        - Washing machine (0xDB)
+        - Another category, not supported yet
+        - Not appliance-specific (setup, sign-in, panel, services)
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model code (sn8) and appliance name
+      description: >-
+        The eight-character model code the cloud uses. Settings → Devices & services →
+        HolaBrain → your appliance — it is shown as **Model** on the device page, and it is
+        in the diagnostics dump. Add the marketing name if you know it.
+      placeholder: "e.g. 12345678 — HolaBrain 60 cm dishwasher"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happens
+      description: What you did, and what the integration or the appliance actually did.
+      placeholder: |
+        1. Selected the "eco" programme and pressed "Start cycle".
+        2. The appliance beeped but did not start.
+        3. The "Running" switch flipped back to off after ~10 seconds.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        **Required.** This is what makes a report actionable: it carries the appliance
+        record as the account returns it, the resolved capability profile and every status
+        key the appliance reports.
+
+        Settings → Devices & services → **HolaBrain** → ⋮ → **Download diagnostics**
+        (for a single appliance: open the device page first, then ⋮ → Download diagnostics).
+
+        The dump is redacted before it is written — account, password, session, serial, MAC
+        and Wi-Fi details are removed, and appliance ids become stable pseudonyms — so it is
+        safe to attach here. Drag the `.json` file into this field, or paste it.
+        [What is in it, and what to skim before posting](https://github.com/dzerik/holabrain-ha/blob/main/docs/diagnostics.md).
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log
+      description: |
+        Add this to `configuration.yaml`, restart Home Assistant, reproduce the problem,
+        then attach the relevant part of `home-assistant.log`:
+
+        ```yaml
+        logger:
+          default: warning
+          logs:
+            custom_components.holabrain: debug
+        ```
+
+        You can also enable it without a restart from Settings → Devices & services →
+        HolaBrain → ⋮ → **Enable debug logging**, reproduce, then disable it — Home
+        Assistant downloads the captured log for you.
+
+        Post the window around the problem, not the whole file. Unlike diagnostics, log
+        lines are **not** redacted — skim what you paste and replace anything identifying
+        with `...`.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >-
+        Screenshots, how the vendor app behaves in the same situation, whether it started
+        after an update, whether it is reproducible.
+    validations:
+      required: false

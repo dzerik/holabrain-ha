@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Only this job writes, and only to create the release and upload its asset.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve version from the tag
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          echo "tag=${tag}" >>"$GITHUB_OUTPUT"
+          echo "version=${version}" >>"$GITHUB_OUTPUT"
+          # A pre-release tag (v0.11.0-rc1) must not be offered as a stable download.
+          case "${version}" in
+            *-*) echo "prerelease=true" >>"$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=false" >>"$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Check the tag matches manifest.json and pyproject.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          manifest=$(python -c "import json;print(json.load(open('custom_components/holabrain/manifest.json'))['version'])")
+          project=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag=${VERSION} manifest=${manifest} pyproject=${project}"
+          # HACS shows the tag but Home Assistant reports manifest.json, and a mismatch
+          # makes an upgrade look like it did not happen.
+          if [ "${manifest}" != "${VERSION}" ] || [ "${project}" != "${VERSION}" ]; then
+            echo "::error::Version mismatch: tag ${VERSION}, manifest ${manifest}, pyproject ${project}"
+            exit 1
+          fi
+
+      - name: Build holabrain.zip
+        run: |
+          # HACS (zip_release) extracts the archive straight into
+          # config/custom_components/holabrain, so the integration's own files —
+          # manifest.json first of all — must sit at the root of the archive.
+          cd custom_components/holabrain
+          zip -r -q "${GITHUB_WORKSPACE}/holabrain.zip" . \
+            -x '*__pycache__/*' '*.pyc' '.DS_Store'
+          cd "${GITHUB_WORKSPACE}"
+          unzip -l holabrain.zip
+          if ! unzip -Z1 holabrain.zip | grep -qx 'manifest.json'; then
+            echo "::error::manifest.json is not at the root of holabrain.zip"
+            exit 1
+          fi
+
+      - name: Collect the release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The CHANGELOG follows Keep a Changelog, so the section for this version is
+          # everything between its heading and the next one.
+          awk -v version="${VERSION}" '
+            $0 ~ "^## \\[" version "\\]" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md >notes.md
+          if [ ! -s notes.md ]; then
+            echo "::warning::No CHANGELOG section for ${VERSION}; falling back to generated notes."
+            printf 'See the [changelog](https://github.com/%s/blob/main/CHANGELOG.md).\n' \
+              "${GITHUB_REPOSITORY}" >notes.md
+          fi
+          cat notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            # The tag was released by hand; only make sure the asset HACS looks for
+            # is the one built here.
+            gh release upload "${TAG}" holabrain.zip --clobber
+          else
+            flags=""
+            if [ "${PRERELEASE}" = "true" ]; then
+              flags="--prerelease"
+            fi
+            # shellcheck disable=SC2086
+            gh release create "${TAG}" holabrain.zip \
+              --title "${TAG}" --notes-file notes.md ${flags}
+          fi

@@ -1,0 +1,12 @@
+name: HolaBrain CodeQL config
+
+# Vendored third-party code is shipped verbatim so the panel needs no build step.
+# Analysing it produces findings that cannot be fixed here, only upstream.
+paths-ignore:
+  - custom_components/holabrain/www/vendor
+
+# security-extended adds the lower-severity security queries on top of the default
+# suite without pulling in the maintainability queries, which would drown the real
+# findings in a repository this size.
+queries:
+  - uses: security-extended

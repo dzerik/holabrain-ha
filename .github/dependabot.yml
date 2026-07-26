@@ -1,0 +1,43 @@
+version: 2
+
+updates:
+  # Workflow actions. These run with a token, so an unmaintained or compromised
+  # action is the most valuable thing to keep current in this repository.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # One pull request for all actions: they are few and always reviewed together.
+      github-actions:
+        patterns:
+          - "*"
+
+  # Test tooling (requirements_test.txt). The runtime requirements in
+  # custom_components/holabrain/manifest.json are deliberately not managed here —
+  # Home Assistant resolves those itself and pins ranges, not versions.
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # pytest-homeassistant-custom-component pins the whole pytest stack, so its
+      # updates only make sense as a single, atomic bump.
+      test-stack:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

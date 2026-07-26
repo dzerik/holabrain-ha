@@ -1,0 +1,144 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "drum_clean_due": {
+        "default": "mdi:washing-machine-alert"
+      },
+      "preheat_reached": {
+        "default": "mdi:thermometer-check"
+      },
+      "preheating": {
+        "default": "mdi:fire"
+      }
+    },
+    "button": {
+      "pause": {
+        "default": "mdi:pause"
+      },
+      "resume": {
+        "default": "mdi:play"
+      },
+      "standby": {
+        "default": "mdi:power-standby"
+      },
+      "start": {
+        "default": "mdi:play-circle"
+      },
+      "start_cycle": {
+        "default": "mdi:play-circle"
+      },
+      "stop": {
+        "default": "mdi:stop"
+      }
+    },
+    "number": {
+      "cook_time": {
+        "default": "mdi:timer-outline"
+      },
+      "delay_start": {
+        "default": "mdi:timer-outline"
+      },
+      "probe_temperature": {
+        "default": "mdi:thermometer-probe"
+      },
+      "rinse_aid_level": {
+        "default": "mdi:cup-water"
+      },
+      "target_temperature": {
+        "default": "mdi:thermometer"
+      },
+      "water_softener": {
+        "default": "mdi:shaker-outline"
+      }
+    },
+    "select": {
+      "cook_mode": {
+        "default": "mdi:toaster-oven"
+      },
+      "dry_level": {
+        "default": "mdi:tumble-dryer"
+      },
+      "extra_option": {
+        "default": "mdi:tune-variant"
+      },
+      "program": {
+        "default": "mdi:washing-machine"
+      },
+      "program_select": {
+        "default": "mdi:dishwasher"
+      },
+      "spin_speed": {
+        "default": "mdi:rotate-3d-variant"
+      },
+      "wash_temperature": {
+        "default": "mdi:thermometer"
+      },
+      "wash_zone": {
+        "default": "mdi:arrow-up-down"
+      }
+    },
+    "sensor": {
+      "program": {
+        "default": "mdi:playlist-check"
+      },
+      "rinse_aid_refills": {
+        "default": "mdi:cup-water"
+      },
+      "salt_refills": {
+        "default": "mdi:shaker-outline"
+      },
+      "total_cycles": {
+        "default": "mdi:counter"
+      },
+      "wash_stage": {
+        "default": "mdi:progress-clock"
+      },
+      "washing_phase": {
+        "default": "mdi:progress-clock"
+      },
+      "washes_since_clean": {
+        "default": "mdi:counter"
+      }
+    },
+    "switch": {
+      "auto_door_open": {
+        "default": "mdi:door-open"
+      },
+      "auto_dose": {
+        "default": "mdi:cup-water"
+      },
+      "child_lock": {
+        "default": "mdi:lock"
+      },
+      "extra_rinse": {
+        "default": "mdi:water-plus"
+      },
+      "power": {
+        "default": "mdi:power"
+      },
+      "preheat": {
+        "default": "mdi:fire"
+      },
+      "running": {
+        "default": "mdi:play-pause"
+      },
+      "speed_wash": {
+        "default": "mdi:rocket-launch-outline"
+      }
+    }
+  },
+  "services": {
+    "refresh_capabilities": {
+      "service": "mdi:refresh"
+    },
+    "rename_device": {
+      "service": "mdi:rename-outline"
+    },
+    "scan_devices": {
+      "service": "mdi:magnify-scan"
+    },
+    "unbind_device": {
+      "service": "mdi:link-off"
+    }
+  }
+}

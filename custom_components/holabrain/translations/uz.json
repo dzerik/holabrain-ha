@@ -1,0 +1,522 @@
+{
+  "services": {
+    "refresh_capabilities": {
+      "name": "Imkoniyatlarni yangilash",
+      "description": "Har bir jihoz nima qila olishini qayta aniqlaydi va javob o'zgargan bo'lsa, obyektlarni qayta quradi. Imkoniyatlar keshlanadi va avtomatik yangilanadi; jihozda funksiyani yoqqandan keyin yoki obyektlar yo'q bo'lsa, qo'lda chaqiring.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hisob",
+          "description": "Yangilashni bitta HolaBrain hisobi bilan cheklash. Ko'rsatilmasa, barchasi yangilanadi."
+        },
+        "device_id": {
+          "name": "Qurilma",
+          "description": "Yangilashni ushbu qurilma tegishli bo'lgan hisob bilan cheklash."
+        }
+      }
+    },
+    "scan_devices": {
+      "name": "Qurilmalarni qidirish",
+      "description": "HolaBrain hisobini qayta o'qiydi, shunda sozlashdan keyin qo'shilgan qurilmalar Home Assistant'da paydo bo'ladi. Hisob seansini egallaydi va shu sababli HolaBrain mobil ilovasidan chiqaradi; oddiy holat so'rovi buni qilmaydi.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hisob",
+          "description": "Faqat bitta HolaBrain hisobini tekshirish. Ko'rsatilmasa, hammasi tekshiriladi."
+        },
+        "device_id": {
+          "name": "Qurilma",
+          "description": "Faqat shu qurilma tegishli hisobni tekshirish."
+        }
+      }
+    },
+    "rename_device": {
+      "name": "Qurilma nomini o'zgartirish",
+      "description": "HolaBrain hisobidagi qurilma nomini o'zgartiradi. Yangi nomni mobil ilova ham ko'radi.",
+      "fields": {
+        "device_id": {
+          "name": "Qurilma",
+          "description": "Nomi o'zgartiriladigan qurilma."
+        },
+        "name": {
+          "name": "Nom",
+          "description": "Qurilmaning yangi nomi."
+        }
+      }
+    },
+    "unbind_device": {
+      "name": "Qurilmani hisobdan o'chirish",
+      "description": "Qurilmani HolaBrain hisobidan uzadi va Home Assistant'dan o'chiradi. Uni qayta qo'shish uchun qurilmaga jismoniy kirish kerak, shuning uchun bu amalni masofadan bekor qilib bo'lmaydi.",
+      "fields": {
+        "device_id": {
+          "name": "Qurilma",
+          "description": "Hisobdan o'chiriladigan qurilma."
+        },
+        "confirm": {
+          "name": "Tasdiqlash",
+          "description": "Yoqilishi shart. Tasodifiy chaqiruvdan himoya qiladi: o'chirishni Home Assistant'dan bekor qilib bo'lmaydi."
+        }
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "HolaBrain",
+        "description": "HolaBrain hisobingiz bilan kiring.",
+        "data": {
+          "account": "Elektron pochta",
+          "password": "Parol",
+          "region": "Hudud",
+          "country": "Mamlakat kodi"
+        },
+        "data_description": {
+          "account": "HolaBrain ilovasiga kiradigan elektron pochta manzilingiz.",
+          "password": "HolaBrain hisobingiz paroli. Bulut seansni tugatganda integratsiya qayta kira olishi uchun saqlanadi.",
+          "region": "Hisobingiz tegishli bulut mintaqasi. Mobil ilovadagi bilan bir xilini tanlang.",
+          "country": "Kirishda yuboriladigan ikki harfli mamlakat kodi, masalan RU."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Qayta avtorizatsiya",
+        "description": "HolaBrain buluti {account} uchun saqlangan seansni rad etdi. Parolni qayta kiriting.",
+        "data": {
+          "password": "Parol"
+        },
+        "data_description": {
+          "password": "HolaBrain hisobingiz paroli."
+        }
+      },
+      "reconfigure": {
+        "title": "HolaBrain",
+        "description": "Saqlangan hisob ma'lumotlari, mintaqa yoki mamlakatni yangilang. Hisobning o'zi o'zgarmasligi kerak — boshqa hisob uchun ikkinchi yozuv qo'shing.",
+        "data": {
+          "account": "Elektron pochta",
+          "password": "Parol",
+          "region": "Mintaqa",
+          "country": "Mamlakat kodi"
+        },
+        "data_description": {
+          "account": "HolaBrain ilovasiga kiradigan elektron pochta manzilingiz.",
+          "password": "HolaBrain hisobingiz paroli. Bulut seansni tugatganda integratsiya qayta kira olishi uchun saqlanadi.",
+          "region": "Hisobingiz tegishli bulut mintaqasi. Mobil ilovadagi bilan bir xilini tanlang.",
+          "country": "Kirishda yuboriladigan ikki harfli mamlakat kodi, masalan RU."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Hisob yoki parol notoʻgʻri.",
+      "cannot_connect": "HolaBrain bulutiga ulanib boʻlmadi."
+    },
+    "abort": {
+      "already_configured": "Bu hisob allaqachon sozlangan.",
+      "reauth_successful": "Qayta avtorizatsiya muvaffaqiyatli.",
+      "reconfigure_successful": "Sozlamalar yangilandi.",
+      "account_mismatch": "Bu ma'lumotlar boshqa hisobga tegishli. Bu yozuvni o'zgartirish o'rniga ikkinchi yozuv qo'shing."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Panel",
+        "menu_options": {
+          "panel": "Panel",
+          "scan": "Qurilmalarni qidirish",
+          "add_appliance": "Qurilma qo‘shish"
+        }
+      },
+      "panel": {
+        "title": "Panel",
+        "description": "HolaBrain panelini yon menyuda ko‘rsatish.",
+        "data": {
+          "panel": "Panelni yon menyuda ko‘rsatish"
+        }
+      },
+      "scan": {
+        "title": "Qurilmalarni qidirish",
+        "description": "Sozlashdan keyin ulangan qurilmalarni qo‘shish uchun hisobni qayta o‘qiydi.\n\n⚠️ **Siz HolaBrain mobil ilovasidan chiqasiz.** Bulut bitta hisob uchun faqat bitta faol seansga ruxsat beradi, shuning uchun ilova seansi tugaydi va u yerda qayta kirish kerak bo‘ladi. Kundalik monitoring buni qilmaydi — faqat shu qidiruv."
+      },
+      "claim": {
+        "title": "Qurilma qo‘shish",
+        "description": "Bu qurilmalar tarmog‘ingizda javob berdi va hali hisobga bog‘lanmagan.\\n\\n**Bu faqat HolaBrain mobil ilovasi qurilmani Wi-Fi ga ulagan, ammo uni qo‘sha olmagan paytdan keyin ishlaydi.** Bu oynadan tashqarida bulut qurilmani bermaydi, juftlash tugmasini bosish esa *yordam bermaydi* — u Wi-Fi sozlamalarini o‘chiradi. Boshqa hollarda qurilmani mobil ilova orqali qo‘shing.\\n\\nWi-Fi ma’lumotlari ixtiyoriy. **BSSID — routerning radio modulining MAC manzili**, tarmoq nomi *emas*.\\n\\n⚠️ **Biriktirish HolaBrain mobil ilovasidan chiqishga olib keladi.**",
+        "data": {
+          "appliance": "Qurilma",
+          "bssid": "Router MAC manzili (BSSID) — ixtiyoriy",
+          "wifi_password": "Wi-Fi paroli — ixtiyoriy"
+        }
+      }
+    },
+    "abort": {
+      "scan_done": "Qidiruv tugadi: qo‘shildi — {added}, o‘chirildi — {removed}.",
+      "scan_failed": "Qidiruv uchun bulut bilan bog‘lanib bo‘lmadi.",
+      "scan_auth_failed": "Hisob so‘rovni rad etdi. Qayta avtorizatsiyadan o‘ting va takrorlang.",
+      "appliance_offline": "Bulut hozir qurilmani ko‘rmayapti.",
+      "bind_failed": "Bulut qurilmani qo‘shishdan bosh tortdi.",
+      "appliance_added": "Qurilma qo‘shildi: yangi qurilmalar soni — {added}.",
+      "nothing_to_add": "Tarmoqdan topilgan barcha qurilmalar allaqachon hisobga bog‘langan.",
+      "no_appliances_found": "Tarmoqda hech bir qurilma javob bermadi. Qurilma yoqilgan, Home Assistant bilan bir tarmoqda va juftlash rejimida ekaniga ishonch hosil qiling.",
+      "search_failed": "Mahalliy tarmoqda qidiruvni boshlab bo‘lmadi."
+    },
+    "error": {
+      "serial_unknown": "Bulut bunday seriya raqamini bilmaydi. Yorliq bilan solishtiring.",
+      "not_claimable": "Bulut bu qurilmani bermaydi. Uni mobil ilova orqali qo‘shing. Juftlash tugmasini bosmang: u Wi-Fi sozlamalarini o‘chiradi.",
+      "cannot_connect": "HolaBrain buluti bilan bog‘lanib bo‘lmadi.",
+      "not_claimable_try_wifi": "Bulut bu qurilmani bermaydi. Uni mobil ilova orqali qo‘shing. Juftlash tugmasini bosmang: u Wi-Fi sozlamalarini o‘chiradi."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "wash_stage": {
+        "name": "Yuvish bosqichi",
+        "state": {
+          "pre_wash": "Dastlabki yuvish",
+          "main_wash": "Asosiy yuvish",
+          "rinse": "Chayish",
+          "drying": "Quritish",
+          "finished": "Tugadi",
+          "idle": "Kutish"
+        }
+      },
+      "program": {
+        "name": "Dastur",
+        "state": {
+          "auto": "Avto",
+          "intensive": "Intensiv",
+          "universal": "Universal",
+          "eco": "Eko",
+          "delicate": "Nozik",
+          "90mins": "90 daqiqa",
+          "rapid": "Tezkor",
+          "soak": "Ivitish",
+          "party": "Ziyofat",
+          "hygiene": "Gigiyena",
+          "self_cleaning": "Oʻzini tozalash"
+        }
+      },
+      "fault": {
+        "name": "Nosozlik",
+        "state": {
+          "none": "—",
+          "e1": "E1 — suv olish",
+          "e2": "E2",
+          "e3": "E3 — isitish",
+          "e4": "E4 — suv toshishi",
+          "e8": "E8",
+          "ec": "EC",
+          "eh": "EH",
+          "c4": "C4",
+          "l4": "L4",
+          "e10": "E10",
+          "e12": "E12",
+          "e21": "E21",
+          "e30": "E30",
+          "e33": "E33",
+          "e37": "E37"
+        }
+      },
+      "remaining_time": {
+        "name": "Qolgan vaqt"
+      },
+      "temperature": {
+        "name": "Harorat"
+      },
+      "salt_refills": {
+        "name": "Tuz toʻldirishlari soni"
+      },
+      "rinse_aid_refills": {
+        "name": "Chayish vositasi toʻldirishlari soni"
+      },
+      "total_cycles": {
+        "name": "Jami sikllar"
+      },
+      "total_water": {
+        "name": "Jami suv"
+      },
+      "total_energy": {
+        "name": "Jami energiya"
+      },
+      "heat_status": {
+        "name": "Isitish holati",
+        "state": {
+          "standby": "Kutish",
+          "heating": "Isitilmoqda",
+          "keep_warm": "Issiqni saqlash"
+        }
+      },
+      "machine_status": {
+        "name": "Mashina holati",
+        "state": {
+          "power_off": "O‘chiq",
+          "standby": "Kutish",
+          "running": "Yuvish",
+          "pause": "Pauza",
+          "finished": "Tugadi",
+          "fault": "Nosozlik"
+        }
+      },
+      "working_temperature": {
+        "name": "Ishchi harorat"
+      },
+      "oven_fault": {
+        "name": "Xato kodi",
+        "state": {
+          "none": "Yo‘q",
+          "e01": "E01",
+          "e02": "E02",
+          "e03": "E03",
+          "e72": "E72 — go‘sht zondi",
+          "d11": "d11"
+        }
+      },
+      "washing_phase": {
+        "name": "Yuvish bosqichi",
+        "state": {
+          "idle": "Bo‘sh",
+          "rinse": "Chayish",
+          "wash": "Yuvish",
+          "pre_wash": "Dastlabki yuvish",
+          "spin": "Siqish",
+          "auto_weight": "Tortish",
+          "drying": "Quritish"
+        }
+      },
+      "washes_since_clean": {
+        "name": "Oxirgi tozalashdan beri yuvishlar"
+      }
+    },
+    "binary_sensor": {
+      "door": {
+        "name": "Eshik"
+      },
+      "salt_low": {
+        "name": "Tuz kam"
+      },
+      "rinse_aid_low": {
+        "name": "Chayish vositasi kam"
+      },
+      "fault": {
+        "name": "Nosozlik"
+      },
+      "preheating": {
+        "name": "Oldindan qizdirish"
+      },
+      "preheat_reached": {
+        "name": "Qizdirish tugadi"
+      },
+      "water_tank": {
+        "name": "Suv idishi"
+      },
+      "water_low": {
+        "name": "Suv kam"
+      },
+      "water_change": {
+        "name": "Suvni almashtiring"
+      },
+      "detergent_low": {
+        "name": "Yuvish vositasi kam"
+      },
+      "softener_low": {
+        "name": "Konditsioner kam"
+      },
+      "drum_clean_due": {
+        "name": "Barabanni tozalash kerak"
+      },
+      "remote_control": {
+        "name": "Masofadan boshqarishga ruxsat"
+      }
+    },
+    "switch": {
+      "running": {
+        "name": "Ishlash"
+      },
+      "auto_door_open": {
+        "name": "Eshikni avtomatik ochish"
+      },
+      "power": {
+        "name": "Quvvat"
+      },
+      "child_lock": {
+        "name": "Bolalardan himoya"
+      },
+      "preheat": {
+        "name": "Oldindan qizdirish"
+      },
+      "extra_rinse": {
+        "name": "Qo‘shimcha chayish"
+      },
+      "speed_wash": {
+        "name": "Tezkor yuvish"
+      },
+      "auto_dose": {
+        "name": "Avtodozalash"
+      }
+    },
+    "number": {
+      "rinse_aid_level": {
+        "name": "Chayish vositasi darajasi"
+      },
+      "water_softener": {
+        "name": "Suv yumshatgich"
+      },
+      "target_temperature": {
+        "name": "Belgilangan harorat"
+      },
+      "cook_time": {
+        "name": "Pishirish vaqti"
+      },
+      "probe_temperature": {
+        "name": "Zond harorati"
+      },
+      "delay_start": {
+        "name": "Kechiktirilgan start"
+      }
+    },
+    "select": {
+      "cook_mode": {
+        "name": "Pishirish rejimi",
+        "state": {
+          "conventional": "Yuqori + past",
+          "convection": "Konveksiya",
+          "conventional_fan": "Yuqori + past, ventilyator bilan",
+          "radiant_heat": "Infraqizil gril",
+          "double_grill_fan": "Katta gril, ventilyator bilan",
+          "double_grill": "Katta gril",
+          "pizza": "Pitsa",
+          "bottom_heat": "Pastdan qizdirish",
+          "eco": "Eko",
+          "fermentation": "Xamir oshirish",
+          "keep_warm": "Issiq saqlash",
+          "defrost": "Muzdan tushirish"
+        }
+      },
+      "wash_temperature": {
+        "name": "Yuvish harorati"
+      },
+      "spin_speed": {
+        "name": "Siqish tezligi"
+      },
+      "dry_level": {
+        "name": "Quritish darajasi"
+      },
+      "program": {
+        "name": "Dastur",
+        "state": {
+          "cotton": "Paxta",
+          "cotton_eco": "Paxta eko",
+          "quick": "Tezkor",
+          "mix": "Aralash",
+          "synthetic": "Sintetika",
+          "wool": "Jun",
+          "baby": "Bolalar uchun",
+          "sport": "Sport",
+          "rinse_spin": "Chayish + siqish",
+          "spin_only": "Faqat siqish",
+          "drum_clean": "Barabanni tozalash",
+          "steam_wash": "Bug‘ bilan",
+          "wash_dry": "Yuvish + quritish",
+          "dry": "Quritish",
+          "my_cycle": "Mening dasturim"
+        }
+      },
+      "program_select": {
+        "name": "Dastur",
+        "state": {
+          "auto": "Avto",
+          "intensive": "Intensiv",
+          "universal": "Universal",
+          "eco": "Eko",
+          "delicate": "Nozik",
+          "90mins": "90 daqiqa",
+          "rapid": "Tezkor",
+          "soak": "Ivitish",
+          "party": "Ziyofat",
+          "hygiene": "Gigiyena",
+          "self_cleaning": "Oʻzini tozalash"
+        }
+      },
+      "extra_option": {
+        "name": "Qo‘shimcha imkoniyat",
+        "state": {
+          "none": "Yo‘q",
+          "extra_drying": "Qo‘shimcha quritish",
+          "half_load": "Yarim yuklama",
+          "power_wash": "Intensiv yuvish",
+          "turbo_speed": "Tezlashtirish"
+        }
+      },
+      "wash_zone": {
+        "name": "Yuvish zonasi",
+        "state": {
+          "upper": "Yuqori savat",
+          "lower": "Pastki savat",
+          "both": "Ikkala savat"
+        }
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Boshlash"
+      },
+      "resume": {
+        "name": "Davom etish"
+      },
+      "pause": {
+        "name": "Pauza"
+      },
+      "stop": {
+        "name": "To‘xtatish"
+      },
+      "standby": {
+        "name": "Kutish rejimi"
+      },
+      "start_cycle": {
+        "name": "Siklni boshlash"
+      }
+    }
+  },
+  "exceptions": {
+    "door_open": {
+      "message": "Eshik ochiq bo‘lganda idish yuvish mashinasi ishga tushmaydi."
+    },
+    "write_blocked": {
+      "message": "Qurilma hozir bu o‘zgarishni qabul qila olmaydi."
+    },
+    "no_cook_mode": {
+      "message": "Pechni ishga tushirishdan oldin pishirish rejimini tanlang."
+    },
+    "no_program": {
+      "message": "Idish yuvish mashinasini ishga tushirishdan oldin dasturni tanlang."
+    },
+    "no_loaded_account": {
+      "message": "Hech qanday HolaBrain hisobi yuklanmagan."
+    },
+    "account_not_loaded": {
+      "message": "Qurilma hozir yuklanmagan hisobga tegishli."
+    },
+    "unknown_device": {
+      "message": "{device_id} identifikatorli qurilma mavjud emas."
+    },
+    "not_an_appliance": {
+      "message": "{device_id} qurilmasi HolaBrain qurilmasi emas."
+    },
+    "scan_failed": {
+      "message": "{account} hisobini tekshirib bo'lmadi: {error}"
+    },
+    "rename_failed": {
+      "message": "Qurilma nomini o'zgartirib bo'lmadi: {error}"
+    },
+    "unbind_not_confirmed": {
+      "message": "Qurilmani hisobdan o'chirishni Home Assistant'dan bekor qilib bo'lmaydi. Davom etish uchun tasdiqlashni yoqing."
+    },
+    "unbind_failed": {
+      "message": "Qurilmani hisobdan o'chirib bo'lmadi: {error}"
+    },
+    "unbind_refused": {
+      "message": "Hisob qurilmani o'chirmadi — u hali ham bog'langan."
+    }
+  },
+  "issues": {
+    "unsupported_category": {
+      "title": "Qo'llab-quvvatlanmaydigan qurilma turi ({device_type})",
+      "description": "HolaBrain hisobingizda bu versiya hali qo'llab-quvvatlamaydigan qurilma bor, shuning uchun uning obyektlari yo'q: turi {device_type}, modeli {models}.\n\nIltimos, issue oching va integratsiya diagnostikasini biriktiring. Unda qo'llab-quvvatlashni qo'shish uchun kerakli hamma narsa bor, hisob va qurilma identifikatorlari esa olib tashlangan."
+    }
+  }
+}
