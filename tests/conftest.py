@@ -219,6 +219,12 @@ class FakeCloud:
     def set_attr(self, thing_code: str, **attrs: Any) -> None:
         self.states.setdefault(thing_code, {}).update(attrs)
 
+    def drop_attrs(self, thing_code: str, *keys: str) -> None:
+        """Stop reporting ``keys`` — how a partial push frame looks to the integration."""
+        state = self.states.setdefault(thing_code, {})
+        for key in keys:
+            state.pop(key, None)
+
     # -- binding -------------------------------------------------------------------------
     def _decrypt_serial(self, field: str) -> str:
         """Undo the session encryption the client applies to a serial."""

@@ -58,8 +58,30 @@ from .aiodollin import (
 )
 from .aiodollin.transport.mqtt import MqttClient
 from .aiodollin.transport.ssl import build_client_ssl_context
+from .conditions import resolve_state
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from .registry import CATEGORIES, get_category
+
+
+class _SnapshotContext:
+    """Condition context for resolving the state machine itself.
+
+    Deliberately raw: only status keys the appliance reported. ``@state`` resolves to
+    nothing here, so a rule cannot refer to the state it is helping to decide.
+    """
+
+    __slots__ = ("_state",)
+
+    def __init__(self, state: DeviceState) -> None:
+        self._state = state
+
+    def value(self, key: str) -> str | None:
+        raw = self._state.get(key)
+        return None if raw is None else str(raw)
+
+    def program_allows(self, flag: str, exclusion_param: str | None) -> bool:
+        # Programme scope belongs to an entity's composer, not to the appliance's state.
+        return True
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,6 +147,7 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         self._failed_polls = 0
         self._unsupported: set[str] = set()
         self._snapshot_due = False
+        self._machine_states: dict[str, tuple[DeviceState, str | None]] = {}
 
     @property
     def client(self) -> DollinClient:
@@ -139,6 +162,29 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
     def last_push(self) -> datetime | None:
         """When the push channel last delivered anything (heartbeats included)."""
         return self._last_push
+
+    def machine_state(self, thing_code: str) -> str | None:
+        """The category's state-machine state for a device, or ``None`` if undecidable.
+
+        Resolved once per snapshot and cached against its identity: every gated entity on
+        the device asks for this on every update, and the appliance families need several
+        status keys combined to answer it.
+        """
+        state = (self.data or {}).get(thing_code)
+        if state is None:
+            return None
+        cached = self._machine_states.get(thing_code)
+        if cached is not None and cached[0] is state:
+            return cached[1]
+        device = self.devices.get(thing_code)
+        category = get_category(device.device_type) if device is not None else None
+        name = (
+            resolve_state(category.states, _SnapshotContext(state))
+            if category is not None and category.states
+            else None
+        )
+        self._machine_states[thing_code] = (state, name)
+        return name
 
     def profile_key(self, device: Device) -> str:
         """Cache key for a device's profile: its model, or the device id if it has none."""

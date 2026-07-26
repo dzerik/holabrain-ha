@@ -92,6 +92,7 @@ class HolabrainSensor(HolabrainEntity, SensorEntity):
     def __init__(self, coordinator, thing_code: str, spec: SensorSpec) -> None:
         super().__init__(coordinator, thing_code, spec.key)
         self._spec = spec
+        self._gates = spec.gates
         self._attr_translation_key = spec.translation_key
         self._attr_device_class = spec.device_class
         self._attr_native_unit_of_measurement = spec.unit
@@ -108,6 +109,11 @@ class HolabrainSensor(HolabrainEntity, SensorEntity):
 
     @property
     def native_value(self):
+        # The appliance keeps reporting fields that stopped meaning anything when the cycle
+        # ended; reporting them as unknown is the honest answer, and it is what the vendor's
+        # own app does rather than showing last cycle's leftovers as live.
+        if not self._is_meaningful:
+            return None
         transform = _TRANSFORMS.get(self._spec.transform or "")
         if transform is not None:
             state = self._state

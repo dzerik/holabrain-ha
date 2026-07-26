@@ -23,11 +23,23 @@ from homeassistant.const import (
     UnitOfTime,
 )
 
+from .conditions import (
+    NO_GATES,
+    Block,
+    Gates,
+    Is,
+    StateIs,
+    StateRule,
+)
+
 # --- Value transforms referenced by SensorSpec.transform ---------------------------------
 # Applied by the sensor platform. Kept as string tags so specs stay declarative/importable.
 TRANSFORM_REMAIN_MINUTES = "remain_minutes"  # remainTimeH*256 + remainTimeL
 TRANSFORM_SECONDS_MINUTES = "seconds_minutes"  # whole seconds -> minutes (rounded up)
 TRANSFORM_OVEN_STATUS = "oven_status"  # devstatus + preheat phase + reachability
+
+# Blanking one of these would read as a counter reset to long-term statistics.
+_LIFETIME_TOTALS = (SensorStateClass.TOTAL, SensorStateClass.TOTAL_INCREASING)
 
 
 @dataclass(frozen=True)
@@ -44,6 +56,16 @@ class SensorSpec:
     capability: str | None = None
     entity_category: EntityCategory | None = None
     entity_registry_enabled_default: bool = True
+    gates: Gates = NO_GATES
+
+    def __post_init__(self) -> None:
+        if self.gates.blocks:
+            raise ValueError(f"sensor {self.key}: read-only, a write can never be refused")
+        if self.state_class in _LIFETIME_TOTALS and self.gates.meaningful_when is not None:
+            # Long-term statistics treat a gap as a counter reset and a reset as a spike.
+            raise ValueError(
+                f"sensor {self.key}: a lifetime total must never be blanked by a gate"
+            )
 
 
 @dataclass(frozen=True)
@@ -62,6 +84,11 @@ class BinarySensorSpec:
     uid: str | None = None
     entity_category: EntityCategory | None = None
     entity_registry_enabled_default: bool = True
+    gates: Gates = NO_GATES
+
+    def __post_init__(self) -> None:
+        if self.gates.blocks:
+            raise ValueError(f"binary sensor {self.key}: read-only, nothing to refuse")
 
 
 @dataclass(frozen=True)
@@ -72,10 +99,8 @@ class SwitchSpec:
     off_command: Mapping[str, str] = field(default_factory=dict)
     on_values: tuple[str, ...] = ("1",)
     capability: str | None = None
-    # Writes are refused by the appliance while ``(key, values)`` holds — e.g. door open.
-    blocked_when: tuple[str, tuple[str, ...]] | None = None
-    blocked_reason: str | None = None
     entity_category: EntityCategory | None = None
+    gates: Gates = NO_GATES
 
 
 @dataclass(frozen=True)
@@ -89,6 +114,7 @@ class SelectSpec:
     extra_command: Mapping[str, str] = field(default_factory=dict)
     capability: str | None = None
     entity_category: EntityCategory | None = None
+    gates: Gates = NO_GATES
 
 
 @dataclass(frozen=True)
@@ -103,6 +129,7 @@ class NumberSpec:
     max_from_gear: str | None = None
     capability: str | None = None
     entity_category: EntityCategory | None = None
+    gates: Gates = NO_GATES
 
 
 @dataclass(frozen=True)
@@ -112,6 +139,11 @@ class ButtonSpec:
     command: Mapping[str, str] = field(default_factory=dict)
     capability: str | None = None
     entity_category: EntityCategory | None = None
+    gates: Gates = NO_GATES
+
+    def __post_init__(self) -> None:
+        if self.gates.meaningful_when is not None:
+            raise ValueError(f"button {self.key}: has no value to blank")
 
 
 @dataclass(frozen=True)
@@ -270,6 +302,12 @@ class CategorySpec:
     numbers: tuple[NumberSpec, ...] = ()
     buttons: tuple[ButtonSpec, ...] = ()
     snapshot_after: SnapshotTrigger | None = None
+    # The appliance's own state machine, in the one place it is written down. Rules are
+    # ordered and the first match wins, exactly as the vendor's own resolver works.
+    states: tuple[StateRule, ...] = ()
+    # Ordered write policy shared by every control of the category. Each vendor plugin has
+    # exactly one such guard; a control opts out of individual reasons via ``Gates.exempt``.
+    guard: tuple[Block, ...] = ()
 
 
 # =========================================================================================
@@ -311,10 +349,43 @@ DISHWASHER_EXTRAS: dict[str, tuple[str, str]] = {
 }
 DISHWASHER_ZONES: dict[str, str] = {"upper": "1", "lower": "2", "both": "3"}
 
+# The appliance's state machine, in the order its own resolver evaluates it:
+# power decides first and overrides everything, a fault outranks any running state, and
+# only then do the run keys get a say. ``power`` is not a boolean here — it is the state
+# itself (0 off, 1/5 standby, 2 reserved, 3 working).
+DISHWASHER_STATES = (
+    StateRule("power_off", Is("power", "0")),
+    StateRule("fault", Is("faultCode", *_FAULT_CODE.keys() - {"0"})),
+    StateRule("standby", Is("power", "1", "5")),
+    StateRule("delay", Is("power", "2")),
+    StateRule("finished", Is("power", "3") & Is("washingState", "5")),
+    StateRule("running", Is("runState", "1")),
+    StateRule("pause", Is("runState", "2")),
+)
+
+# The live countdown and the water temperature only exist while the drum is working.
+_DISHWASHER_RUNNING = StateIs("running", "pause")
+# The stage additionally survives into "finished", which is a stage the user waits for —
+# it is the appliance saying the wash is done, not a leftover from it.
+_DISHWASHER_CYCLE = StateIs("running", "pause", "finished")
+
+# The appliance refuses every command while any of these holds, and the order decides
+# which reason the user is told. Controls opt out individually — power must stay usable
+# exactly when the appliance is off, faulted or open.
+DISHWASHER_GUARD = (
+    Block(StateIs("power_off"), "appliance_off"),
+    Block(StateIs("fault"), "appliance_fault"),
+    Block(Is("doorstatus", "0"), "door_open"),
+    Block(Is("childLock", "1"), "child_lock"),
+)
+_POWER_EXEMPT = frozenset({"appliance_off", "appliance_fault", "door_open", "child_lock"})
+
 DISHWASHER = CategorySpec(
     device_type="0xE1",
     category="dishwasher",
     primary_platform=None,  # no native HA platform — composite
+    states=DISHWASHER_STATES,
+    guard=DISHWASHER_GUARD,
     dishwasher=DishwasherConfig(
         programs=DISHWASHER_PROGRAMS,
         extras=DISHWASHER_EXTRAS,
@@ -324,16 +395,27 @@ DISHWASHER = CategorySpec(
     # counters are written at that moment — see SnapshotTrigger.
     snapshot_after=SnapshotTrigger("washingState", frozenset({"0", "5"})),
     sensors=(
+        # Outside a cycle the appliance keeps reporting the last wash's stage; the vendor
+        # app does not render the stage block at all in those states.
         SensorSpec("washingState", "wash_stage", device_class=SensorDeviceClass.ENUM,
-                   value_map=_WASHING_STAGE),
+                   value_map=_WASHING_STAGE,
+                   gates=Gates(meaningful_when=_DISHWASHER_CYCLE)),
+        # A programme survives into standby as the *next* wash's choice, so it still means
+        # something there — but on a switched-off appliance it is last cycle's leftover.
         SensorSpec("modeEU", "program", device_class=SensorDeviceClass.ENUM,
-                   value_map=_PROGRAM),
+                   value_map=_PROGRAM,
+                   gates=Gates(meaningful_when=~StateIs("power_off"))),
         SensorSpec("faultCode", "fault", device_class=SensorDeviceClass.ENUM,
                    value_map=_FAULT_CODE, entity_category=EntityCategory.DIAGNOSTIC),
+        # The live countdown is only live during a wash. Elsewhere the appliance leaves the
+        # previous cycle's value standing, which is why a switched-off machine was showing
+        # hours "remaining"; the vendor app substitutes a table estimate instead.
         SensorSpec("remainTimeL", "remaining_time", device_class=SensorDeviceClass.DURATION,
-                   unit=UnitOfTime.MINUTES, transform=TRANSFORM_REMAIN_MINUTES),
+                   unit=UnitOfTime.MINUTES, transform=TRANSFORM_REMAIN_MINUTES,
+                   gates=Gates(meaningful_when=_DISHWASHER_RUNNING)),
         SensorSpec("realTemp", "temperature", device_class=SensorDeviceClass.TEMPERATURE,
-                   unit=UnitOfTemperature.CELSIUS, state_class=SensorStateClass.MEASUREMENT),
+                   unit=UnitOfTemperature.CELSIUS, state_class=SensorStateClass.MEASUREMENT,
+                   gates=Gates(meaningful_when=_DISHWASHER_RUNNING)),
         SensorSpec("saltTimes", "salt_refills", state_class=SensorStateClass.TOTAL_INCREASING,
                    capability="salt", entity_category=EntityCategory.DIAGNOSTIC,
                    entity_registry_enabled_default=False),
@@ -363,10 +445,15 @@ DISHWASHER = CategorySpec(
                          capability="rinse_aid"),
     ),
     switches=(
+        # Power is the one control that ignores the whole guard: it has to stay usable
+        # exactly when the appliance is off, faulted, open or locked. "2" (reserved) counts
+        # as on — a delayed start is a switched-on appliance waiting for its hour.
         SwitchSpec("power", "power", on_command={"power": "1"},
-                   off_command={"power": "0"}, on_values=("1", "3", "5")),
+                   off_command={"power": "0"}, on_values=("1", "2", "3", "5"),
+                   gates=Gates(exempt=_POWER_EXEMPT)),
         SwitchSpec("runState", "running", on_command={"runState": "1"},
-                   off_command={"runState": "2"}, on_values=("1",)),
+                   off_command={"runState": "2"}, on_values=("1",),
+                   gates=Gates(meaningful_when=_DISHWASHER_RUNNING)),
         SwitchSpec("autoDoorOpen", "auto_door_open", on_command={"autoDoorOpen": "1"},
                    off_command={"autoDoorOpen": "2"}, on_values=("1",), capability="auto_open",
                    entity_category=EntityCategory.CONFIG),
@@ -529,7 +616,7 @@ OVEN = CategorySpec(
         SwitchSpec("childLock", "child_lock", on_command={"childLock": "1"},
                    off_command={"childLock": "0"}, capability="child_lock",
                    entity_category=EntityCategory.CONFIG,
-                   blocked_when=("doorStatus", ("1",)), blocked_reason="door_open"),
+                   gates=Gates(blocks=(Block(Is("doorStatus", "1"), "door_open"),))),
     ),
     buttons=(
         ButtonSpec("resume", "resume", command={"power": "3"}),

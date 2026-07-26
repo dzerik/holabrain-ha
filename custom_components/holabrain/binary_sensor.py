@@ -36,6 +36,7 @@ class HolabrainBinarySensor(HolabrainEntity, BinarySensorEntity):
     def __init__(self, coordinator, thing_code: str, spec: BinarySensorSpec) -> None:
         super().__init__(coordinator, thing_code, spec.key, uid=spec.uid)
         self._spec = spec
+        self._gates = spec.gates
         self._attr_translation_key = spec.translation_key
         self._attr_device_class = spec.device_class
         self._attr_entity_category = spec.entity_category
@@ -45,6 +46,8 @@ class HolabrainBinarySensor(HolabrainEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
+        if not self._is_meaningful:
+            return None
         raw = self._value()
         if raw is None:
             return self._from_summary()

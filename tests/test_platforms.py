@@ -213,15 +213,20 @@ async def test_binary_sensor_without_its_key_is_unknown_not_off(
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
-    [("0", "off"), ("1", "on"), ("2", "off"), ("3", "on"), ("5", "on"), ("4", "off")],
+    [("0", "off"), ("1", "on"), ("2", "on"), ("3", "on"), ("5", "on"), ("4", "off")],
 )
 async def test_power_switch_recognises_every_powered_on_code(
     hass: HomeAssistant, setup_integration, cloud: FakeCloud, entity_id_of, raw, expected
 ) -> None:
-    """Power is not a boolean on this appliance — several codes mean "on".
+    """Power is not a boolean on this appliance — it is the state itself.
 
-    Treating only ``1`` as on makes the switch flip itself to off as soon as a cycle starts,
-    and every automation that waits for "power on" fires twice.
+    ``0`` is off, ``1``/``5`` are standby, ``2`` is a delayed start and ``3`` is a running
+    wash. Only ``0`` means off: an appliance counting down to a reserved start is switched
+    on and waiting, and reporting it as off makes "turn the dishwasher off when it finishes"
+    fire in the middle of the reservation.
+
+    Treating only ``1`` as on would also make the switch flip itself off the moment a cycle
+    starts, so every automation waiting for "power on" fires twice.
     """
     assert await setup_integration()
     entity_id = entity_id_of("switch", f"{DISHWASHER_CODE}_power")
