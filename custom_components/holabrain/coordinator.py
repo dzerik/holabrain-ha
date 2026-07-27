@@ -318,7 +318,10 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         if not self._catalog.types:
             try:
                 self._catalog = await self._client.catalog.async_tree()
-            except DollinError as err:
+            # Deliberately broad. This runs in a background task, and anything that escapes
+            # it becomes an "exception was never retrieved" traceback in the user's log —
+            # about a decorative label, on a path that has no bearing on control or state.
+            except Exception as err:
                 _LOGGER.debug("appliance-type catalogue unavailable: %s", err)
             else:
                 # Names change what an unsupported appliance is called, so re-issue.
@@ -331,7 +334,9 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             for period in (PERIOD_MONTH, PERIOD_YEAR):
                 try:
                     report = await self._client.statistics.async_report(thing_code, period)
-                except DollinError as err:
+                # Broad for the same reason as the catalogue above: a background task that
+                # raises is a traceback in the log about figures nobody is waiting for.
+                except Exception as err:
                     _LOGGER.debug("consumption (%s) unavailable: %s", period, err)
                     return
                 self._consumption[(thing_code, period)] = report
