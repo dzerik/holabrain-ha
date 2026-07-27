@@ -81,10 +81,20 @@ does that. See [accounts.md](accounts.md).
 It is no longer on the account — removed in the mobile app, or unbound. A scan removes it from
 Home Assistant too; that is the intended behaviour, not data loss.
 
-### The appliance is on the account but has no entities
+### The appliance is on the account but has almost no entities
 
-Its category is not supported yet. Home Assistant shows a **repair issue** naming the type and
-model — see [Repair issues](#repair-issues) below, and [hcl.md](hcl.md).
+Its category is not modelled yet. You still get a device, and one **disabled** diagnostic
+sensor per status field the appliance reports, named with the cloud's own raw key. Home
+Assistant also shows a **repair issue** naming the type — see
+[Repair issues](#repair-issues) below, and [hcl.md](hcl.md).
+
+Those raw sensors are offered rather than presented, because nothing states what the keys
+mean or what scale they use. Enable one on the device page if you recognise the number; a
+screenshot of it next to the appliance's own display is the single most useful thing you can
+attach to a request to support the category.
+
+Nothing writable is created. A command assembled from a guessed key is not a missing
+feature — it is a way to put the appliance into a state nobody asked for.
 
 ### "Add an appliance" cannot find or claim my appliance
 

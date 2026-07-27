@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-27
+
+### Added
+
+- **An appliance category the integration does not model yet is no longer invisible.** It
+  produced no device and no entity, only a repair issue, so "my fridge is on the account and
+  Home Assistant ignores it" read as a broken setup rather than a missing feature. Such an
+  appliance now gets a device and one sensor per status field it reports.
+
+  The fallback is deliberately timid: raw cloud key names, no units, no device classes,
+  everything diagnostic and disabled by default, and nothing writable. Nothing states what
+  those keys mean or what scale they use — a guessed unit is what made a dishwasher report
+  tens of megawatt-hours, and a guessed command would be worse than a wrong reading.
+  Enabling one is the user saying "I recognise this number", which is also the evidence
+  needed to model the category properly.
+
 ## [0.13.0] - 2026-07-27
 
 ### Removed

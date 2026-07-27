@@ -49,8 +49,9 @@ real-time status, automations and an optional dashboard.
 | Water heater | `water_heater` | 🧪 modelled, unverified |
 | Lamp | `light` | 🧪 modelled, unverified |
 
-An appliance category that is not supported yet raises a repair issue naming its type and
-model, so it can be added.
+An appliance category that is not modelled yet still appears as a device, with one disabled
+diagnostic sensor per status field it reports, and raises a repair issue naming its type —
+visible and reportable rather than silently ignored.
 
 ## Setup
 
