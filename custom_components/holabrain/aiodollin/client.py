@@ -13,6 +13,7 @@ import httpx
 
 from .api.binding import BindingApi
 from .api.capabilities import CapabilityApi
+from .api.catalog import CatalogApi
 from .api.certificates import CertificateApi
 from .api.devices import DeviceApi
 from .api.statistics import StatisticsApi
@@ -36,6 +37,7 @@ class DollinClient:
         self.certificates = CertificateApi(auth)
         self.binding = BindingApi(auth)
         self.statistics = StatisticsApi(auth)
+        self.catalog = CatalogApi(auth)
 
     async def _async_status(self, thing_code: str) -> dict[str, Any]:
         """Status snapshot used by the presence-based capability resolver."""

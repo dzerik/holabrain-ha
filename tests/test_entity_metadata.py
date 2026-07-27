@@ -104,8 +104,8 @@ async def test_lifetime_counters_are_diagnostic_and_settings_are_configuration(
     assert await setup_integration()
     registry = er.async_get(hass)
 
-    total_water = entity_id_of("sensor", f"{DISHWASHER_CODE}_totalWaterVol")
-    assert registry.async_get(total_water).entity_category is EntityCategory.DIAGNOSTIC
+    refills = entity_id_of("sensor", f"{DISHWASHER_CODE}_saltTimes")
+    assert registry.async_get(refills).entity_category is EntityCategory.DIAGNOSTIC
 
     softener = entity_id_of("number", f"{DISHWASHER_CODE}_softWaterGear")
     assert registry.async_get(softener).entity_category is EntityCategory.CONFIG

@@ -75,3 +75,40 @@ async def test_an_appliance_paired_later_raises_the_issue_too(
     # The supported appliance is untouched by all of this.
     assert hass.states.async_entity_ids("sensor")
     assert DISHWASHER_CODE in cloud.states
+
+
+async def test_a_known_type_is_named_in_the_issue_not_just_coded(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud
+) -> None:
+    """"0xCA" tells the user nothing; "Refrigerator (0xCA)" tells them what was skipped.
+
+    The cloud publishes an appliance-type catalogue, and this is what it is for: a repair
+    issue naming a raw token reads like a malfunction rather than like a missing feature.
+    """
+    cloud.devices.append(device_entry("880011223344556", "Fridge", "0xCA", "310A056C"))
+    cloud.capabilities["310A056C"] = []
+    cloud.states["880011223344556"] = {"online": 1}
+
+    assert await setup_integration()
+    await hass.async_block_till_done()
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"{ISSUE_UNSUPPORTED}_0xCA")
+    assert issue is not None
+    assert issue.translation_placeholders["device_type"] == "Refrigerator (0xCA)"
+
+
+async def test_an_unavailable_catalogue_still_names_the_type_by_code(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud
+) -> None:
+    """The catalogue is a nicety and must never be why the user is told nothing at all."""
+    cloud.devices.append(device_entry("880011223344556", "Fridge", "0xCA", "310A056C"))
+    cloud.capabilities["310A056C"] = []
+    cloud.states["880011223344556"] = {"online": 1}
+    cloud.fail_next(FakeCloud.CATALOG, TimeoutError("catalogue down"), times=5)
+
+    assert await setup_integration()
+    await hass.async_block_till_done()
+
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"{ISSUE_UNSUPPORTED}_0xCA")
+    assert issue is not None
+    assert issue.translation_placeholders["device_type"] == "0xCA"

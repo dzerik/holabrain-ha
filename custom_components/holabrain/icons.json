@@ -29,6 +29,9 @@
       },
       "stop": {
         "default": "mdi:stop"
+      },
+      "refresh_now": {
+        "default": "mdi:cloud-download"
       }
     },
     "number": {
@@ -87,9 +90,6 @@
       "salt_refills": {
         "default": "mdi:shaker-outline"
       },
-      "total_cycles": {
-        "default": "mdi:counter"
-      },
       "wash_stage": {
         "default": "mdi:progress-clock"
       },
@@ -98,6 +98,18 @@
       },
       "washes_since_clean": {
         "default": "mdi:counter"
+      },
+      "energy_month": {
+        "default": "mdi:lightning-bolt"
+      },
+      "energy_year": {
+        "default": "mdi:lightning-bolt-outline"
+      },
+      "water_month": {
+        "default": "mdi:water"
+      },
+      "water_year": {
+        "default": "mdi:water-outline"
       }
     },
     "switch": {
@@ -124,6 +136,12 @@
       },
       "speed_wash": {
         "default": "mdi:rocket-launch-outline"
+      },
+      "exclusive_mode": {
+        "default": "mdi:account-lock-open",
+        "state": {
+          "on": "mdi:account-lock"
+        }
       }
     }
   },

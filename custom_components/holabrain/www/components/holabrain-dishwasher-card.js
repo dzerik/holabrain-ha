@@ -45,9 +45,6 @@ const HANDLED_ROLES = [
   "water_softener",
   "salt_refills",
   "rinse_aid_refills",
-  "total_cycles",
-  "total_water",
-  "total_energy",
   "energy_month",
   "energy_year",
   "water_month",
@@ -375,18 +372,13 @@ class HolabrainDishwasherCard extends HolabrainDeviceBase {
   }
 
   _renderStatistics(t) {
-    // The cloud's own aggregation first: it is already in kWh and litres and survives
-    // re-pairing. The appliance's raw lifetime counters follow, for anyone who enables
-    // them — they are disabled by default and their scale is not stated anywhere.
+    // The cloud's own aggregation: already in kWh and litres, and it survives re-pairing.
     const roles = [
       "energy_month",
       "water_month",
       "energy_year",
       "water_year",
-      "total_cycles",
-      "total_water",
-      "total_energy",
-    ].filter((role) => this.hasRole(role));
+                ].filter((role) => this.hasRole(role));
     if (!roles.length) return nothing;
     return html`
       <div class="section">

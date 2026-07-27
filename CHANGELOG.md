@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-27
+
+### Removed
+
+- **The appliance's raw lifetime counters** (`total_cycles`, `total_water`, `total_energy`).
+  Nothing states their scale — the vendor's own app never reads those fields — so the `Wh`
+  and `L` labels were a guess, and against the cloud's own figures the energy one was out by
+  a factor of ten, which is how a dishwasher came to report tens of megawatt-hours. They
+  also disappear from the status while the appliance is off, and a `total_increasing` sensor
+  reads a gap followed by a return as a meter replacement, inflating long-term statistics
+  without bound. The consumption sensors added in 0.12.0 carry the same information in units
+  the cloud states itself.
+
+### Added
+
+- **The ecosystem's appliance-type catalogue.** An appliance the integration does not model
+  yet was reported as a bare token like `0xCA`, which reads as a malfunction rather than a
+  missing feature. The repair issue now says "Refrigerator (0xCA)", and the catalogue — 14
+  types and the models sold under each — is included in diagnostics, which is what makes a
+  report about an unsupported appliance actionable. An unreachable catalogue degrades to the
+  raw code rather than to silence.
+- The operating mode is recorded in diagnostics, so a report about stale readings can be
+  told apart from one about a dead push channel.
+
 ## [0.12.1] - 2026-07-27
 
 ### Fixed

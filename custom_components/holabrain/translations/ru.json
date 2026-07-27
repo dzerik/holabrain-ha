@@ -224,15 +224,6 @@
       "rinse_aid_refills": {
         "name": "Пополнения ополаскивателя"
       },
-      "total_cycles": {
-        "name": "Всего циклов"
-      },
-      "total_water": {
-        "name": "Всего воды"
-      },
-      "total_energy": {
-        "name": "Всего энергии"
-      },
       "heat_status": {
         "name": "Состояние нагрева",
         "state": {

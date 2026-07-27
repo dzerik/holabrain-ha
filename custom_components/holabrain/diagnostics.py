@@ -127,7 +127,12 @@ async def async_get_config_entry_diagnostics(
                 coordinator.last_push.isoformat() if coordinator.last_push else None
             ),
             "device_count": len(coordinator.devices),
+            "mode": coordinator.mode,
         },
+        # What the ecosystem calls each appliance type. Included because it is what turns a
+        # report about an unsupported appliance into something actionable: the type code
+        # alone says nothing, and the model list is how its plugin is addressed.
+        "catalog": coordinator.catalog.to_dict(),
         "devices": {
             _pseudonym(thing_code): _device_report(coordinator, thing_code)
             for thing_code in coordinator.devices

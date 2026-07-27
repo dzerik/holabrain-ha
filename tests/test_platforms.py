@@ -151,21 +151,25 @@ async def test_remaining_time_rejects_non_numeric_input(
     assert hass.states.get(entity_id).state == "unknown"
 
 
-async def test_statistics_counters_exist_but_stay_disabled(
-    hass: HomeAssistant, setup_integration, entity_id_of
+async def test_the_appliance_raw_lifetime_counters_are_not_exposed(
+    hass: HomeAssistant, setup_integration
 ) -> None:
-    """Lifetime counters are registered yet disabled, so they cost nothing until wanted.
+    """They are reported by the appliance, and deliberately not turned into entities.
 
-    Enabling them by default would add long-term-statistics rows for every user; not
-    registering them at all would make them unreachable without a code change.
+    Nothing states their scale — the vendor's own app never reads them — so the unit would
+    be a guess, and a wrong unit on an energy sensor is worse than no sensor. They also
+    vanish from the status while the appliance is off, and a ``total_increasing`` sensor
+    reads a gap followed by a return as a meter replacement, inflating long-term statistics
+    without bound. The consumption sensors carry the same information in units the cloud
+    states itself.
     """
     assert await setup_integration()
-    entity_id = entity_id_of("sensor", f"{DISHWASHER_CODE}_totalWaterVol")
+    registry = er.async_get(hass)
 
-    entry = er.async_get(hass).async_get(entity_id)
-    assert entry is not None
-    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    assert hass.states.get(entity_id) is None
+    for key in ("totalwashTimes", "totalWaterVol", "totalElectricVol"):
+        assert (
+            registry.async_get_entity_id("sensor", DOMAIN, f"{DISHWASHER_CODE}_{key}") is None
+        ), f"{key} is back as an entity — its scale is still not documented"
 
 
 # --- binary sensors -----------------------------------------------------------------------

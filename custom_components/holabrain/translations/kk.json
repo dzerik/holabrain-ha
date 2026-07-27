@@ -224,15 +224,6 @@
       "rinse_aid_refills": {
         "name": "Шаю құралын толтыру саны"
       },
-      "total_cycles": {
-        "name": "Барлық циклдар"
-      },
-      "total_water": {
-        "name": "Жалпы су"
-      },
-      "total_energy": {
-        "name": "Жалпы энергия"
-      },
       "heat_status": {
         "name": "Қыздыру күйі",
         "state": {

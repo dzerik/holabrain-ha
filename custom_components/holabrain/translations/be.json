@@ -224,15 +224,6 @@
       "rinse_aid_refills": {
         "name": "Папаўненні апаласквальніка"
       },
-      "total_cycles": {
-        "name": "Усяго цыклаў"
-      },
-      "total_water": {
-        "name": "Усяго вады"
-      },
-      "total_energy": {
-        "name": "Усяго энергіі"
-      },
       "heat_status": {
         "name": "Стан нагрэву",
         "state": {

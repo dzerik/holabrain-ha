@@ -41,7 +41,7 @@ model status: [hcl.md](hcl.md).
 | **Wash zone** | `select` | `_wash_zone` | `upper`, `lower`, `both` — only on models with zones |
 | **Start cycle** | `button` | `_start_cycle` | Submits the staged cycle as one instruction |
 | Salt refills, Rinse aid refills | `sensor` | `_salt_refills`, `_rinse_aid_refills` | Diagnostic, **disabled by default** |
-| Total cycles, Total water, Total energy | `sensor` | `_total_cycles`, `_total_water`, `_total_energy` | Diagnostic, **disabled by default** |
+| Electricity / water this month and this year | `sensor` | `_energy_month`, `_water_month`, `_energy_year`, `_water_year` | kWh and litres, `device_class: energy` / `water` — usable in the energy and water dashboards |
 
 ### Starting a cycle
 

@@ -224,15 +224,6 @@
       "rinse_aid_refills": {
         "name": "Chayish vositasi toʻldirishlari soni"
       },
-      "total_cycles": {
-        "name": "Jami sikllar"
-      },
-      "total_water": {
-        "name": "Jami suv"
-      },
-      "total_energy": {
-        "name": "Jami energiya"
-      },
       "heat_status": {
         "name": "Isitish holati",
         "state": {

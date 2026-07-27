@@ -56,6 +56,7 @@ from .aiodollin import (
     RateLimitError,
     SessionTakeoverError,
 )
+from .aiodollin.api.catalog import DeviceCatalog
 from .aiodollin.api.statistics import PERIOD_MONTH, PERIOD_YEAR, ConsumptionReport
 from .aiodollin.transport.mqtt import MqttClient
 from .aiodollin.transport.ssl import build_client_ssl_context
@@ -168,6 +169,9 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         self._machine_states: dict[str, tuple[DeviceState, str | None]] = {}
         self._explicit_refresh = False
         self._consumption: dict[tuple[str, str], ConsumptionReport] = {}
+        # What the ecosystem calls each appliance type. Only ever used to describe an
+        # appliance to a human, so an empty catalogue degrades to the raw type code.
+        self._catalog = DeviceCatalog()
         # Tied to the first successful poll rather than to setup: widening the capability
         # profile reloads the entry, and a fetch done during the discarded setup would be
         # lost with the coordinator that made it.
@@ -282,6 +286,11 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             return False
         return dt_util.utcnow() - self._last_push < PUSH_SILENCE_LIMIT
 
+    @property
+    def catalog(self) -> DeviceCatalog:
+        """The ecosystem's appliance-type catalogue, empty until it has been fetched."""
+        return self._catalog
+
     def consumption(self, thing_code: str, period: str) -> ConsumptionReport | None:
         """The last consumption report fetched for a device, if any."""
         return self._consumption.get((thing_code, period))
@@ -306,6 +315,15 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         days: losing a race for the account session here must not surface as an error, and
         the next attempt will pick the numbers up unchanged.
         """
+        if not self._catalog.types:
+            try:
+                self._catalog = await self._client.catalog.async_tree()
+            except DollinError as err:
+                _LOGGER.debug("appliance-type catalogue unavailable: %s", err)
+            else:
+                # Names change what an unsupported appliance is called, so re-issue.
+                self._unsupported = set()
+                self._async_report_unsupported()
         for thing_code, device in self.devices.items():
             category = get_category(device.device_type)
             if category is None or category.category not in METERED_CATEGORIES:
@@ -365,6 +383,9 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         explicit = self._explicit_refresh
         self._explicit_refresh = False
         self._consumption: dict[tuple[str, str], ConsumptionReport] = {}
+        # What the ecosystem calls each appliance type. Only ever used to describe an
+        # appliance to a human, so an empty catalogue degrades to the raw type code.
+        self._catalog = DeviceCatalog()
         # Tied to the first successful poll rather than to setup: widening the capability
         # profile reloads the entry, and a fetch done during the discarded setup would be
         # lost with the coordinator that made it.
@@ -458,7 +479,7 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
                 severity=ir.IssueSeverity.WARNING,
                 translation_key=ISSUE_UNSUPPORTED,
                 translation_placeholders={
-                    "device_type": device_type,
+                    "device_type": self._catalog.describe(device_type),
                     "models": ", ".join(
                         sorted(
                             device.model or "?"

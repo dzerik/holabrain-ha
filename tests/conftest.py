@@ -139,6 +139,7 @@ class FakeCloud:
     COMMAND = "command"
     VERIFICATION = "verification"
     STATISTICS = "statistics"
+    CATALOG = "catalog"
     BIND = "bind"
     RENAME = "rename"
     UNBIND = "unbind"
@@ -180,6 +181,27 @@ class FakeCloud:
         # Consumption reports, keyed by (thing_code, period). Shaped like the real ones:
         # already in kWh and litres, one bucket per calendar day or month.
         self.consumption: dict[tuple[str, str], dict[str, Any]] = {}
+        # The ecosystem's appliance-type catalogue, shaped like the real category tree.
+        self.catalog_tree: dict[str, Any] = {
+            "categorys": [
+                {
+                    "categoryId": "1",
+                    "name": "Kitchen",
+                    "subCategorys": [
+                        {
+                            "name": "Dishwasher",
+                            "deviceTypes": ["0xE1"],
+                            "models": [{"model": DISHWASHER_MODEL, "modelName": "Dishwasher"}],
+                        },
+                        {
+                            "name": "Refrigerator",
+                            "deviceTypes": ["0xCA"],
+                            "models": [{"model": "310A056C", "modelName": "Fridge"}],
+                        },
+                    ],
+                }
+            ]
+        }
 
     # -- scripting -----------------------------------------------------------------------
     def fail_next(self, kind: str, outcome: Any, times: int = 1) -> None:
@@ -296,6 +318,9 @@ class FakeCloud:
             self.states.pop(code, None)
         return httpx.Response(200, json={"code": 0, "msg": "", "data": removed})
 
+    def _catalog(self, payload: Any, request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"code": 0, "msg": "success", "data": self.catalog_tree})
+
     def _statistics(self, payload: Any, request: httpx.Request) -> httpx.Response:
         period = request.url.path.rsplit("/", 1)[-1]
         report = self.consumption.get((payload.get("thingCode"), period))
@@ -330,6 +355,8 @@ class FakeCloud:
             return self._dispatch(self.CAPABILITY, path, payload, self._capability, request)
         if path.endswith("/create/app/cert"):
             return self._dispatch(self.CERTIFICATE, path, payload, self._cert, request)
+        if path.endswith("/devicetype/tree"):
+            return self._dispatch(self.CATALOG, path, payload, self._catalog, request)
         if "/statistics/data/report/" in path:
             return self._dispatch(
                 self.STATISTICS, path, payload, self._statistics, request

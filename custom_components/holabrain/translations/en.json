@@ -224,15 +224,6 @@
       "rinse_aid_refills": {
         "name": "Rinse aid refills"
       },
-      "total_cycles": {
-        "name": "Total cycles"
-      },
-      "total_water": {
-        "name": "Total water"
-      },
-      "total_energy": {
-        "name": "Total energy"
-      },
       "heat_status": {
         "name": "Heating status",
         "state": {
