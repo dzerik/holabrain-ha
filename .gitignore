@@ -32,3 +32,6 @@ secrets/
 
 # JetBrains project file
 *.iml
+
+# Claude Code scratch space (worktrees, session state). Never part of the integration.
+.claude/
