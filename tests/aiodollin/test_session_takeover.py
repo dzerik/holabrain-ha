@@ -219,3 +219,27 @@ async def test_polling_a_healthy_session_never_logs_in_again():
         await manager.oem("/v1/thing")
 
     assert cloud.logins == logins
+
+
+@pytest.mark.asyncio
+async def test_expiries_do_not_escalate_the_cool_down_for_a_later_takeover():
+    """Regression: the poll runs every minute and the counter forgets after thirty.
+
+    Before this, a handful of ordinary token expiries inside that window pushed the
+    cool-down to fifteen minutes, and the next genuine takeover was refused outright
+    instead of being reclaimed.
+    """
+    clock = FakeClock()
+    cloud = Cloud()
+    manager = _manager(cloud, clock)
+    await manager.oem("/v1/thing")
+
+    # Three ordinary expiries inside the forget window — this is the path `oem` takes on a
+    # TokenExpiredError, without needing a transport that can raise one.
+    for _ in range(3):
+        await manager._async_relogin()
+
+    assert manager.evictions == 0
+
+    cloud.other_client_logs_in()
+    await manager.oem("/v1/thing")  # first takeover: must still be reclaimed immediately

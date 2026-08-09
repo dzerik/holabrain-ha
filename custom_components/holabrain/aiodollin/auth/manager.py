@@ -1,7 +1,9 @@
 """Authentication manager: login, token caching, and authenticated request retry.
 
 All authenticated API calls go through :meth:`AuthManager.oem` / :meth:`AuthManager.tob`.
-Those attach the current token and, on an :class:`AuthError`, log in again once and retry.
+Those attach the current token and, on a rejection, recover once and retry. How they recover
+depends on why the token was refused: an expired one is replaced immediately, a session taken
+over by another client is reclaimed under a cool-down, and refused credentials stop the call.
 
 Single session per account
 --------------------------
@@ -27,15 +29,21 @@ from collections.abc import Callable
 from typing import Any
 
 from ..const import ENCRYPT_KEY, EP_LOGIN
-from ..exceptions import AuthError, SessionTakeoverError
+from ..exceptions import (
+    AuthError,
+    CredentialsRejectedError,
+    SessionTakeoverError,
+    TokenExpiredError,
+)
 from ..transport.http import HttpTransport
 from .signer import encrypt_password
 from .store import Session, TokenStore
 
 # Cool-down before reclaiming a session that was taken over, indexed by how many takeovers
-# happened recently. The first one retries immediately — it is usually just an expired token.
-# Further ones back off, because a takeover shortly after we reclaimed the session means
-# another client is actively using the account and racing it helps nobody.
+# happened recently. The first one retries immediately, because a single unexplained
+# rejection is usually a one-off. Further ones back off: a takeover shortly after we
+# reclaimed the session means another client is actively using the account, and racing it
+# helps nobody. An expired token does not come through here at all — see `_async_relogin`.
 LOGIN_BACKOFF_SECONDS: tuple[float, ...] = (0.0, 60.0, 300.0, 900.0)
 
 # A takeover this long after the previous one is unrelated, so the counter starts over.
@@ -131,8 +139,19 @@ class AuthManager:
         )
         return self._token
 
+    async def _async_relogin(self) -> str:
+        """Drop the current session and mint a new one.
+
+        The stored session is cleared *before* the login rather than overwritten after it:
+        a login that fails must not leave a token behind that :meth:`async_get_token`
+        would later hand out as usable.
+        """
+        self._token = None
+        await self._store.clear()
+        return await self.async_login()
+
     async def _async_recover(self) -> str:
-        """Handle a rejected token: the session was taken over, so reclaim it.
+        """Handle a token rejected for a reason we cannot name: assume it was taken over.
 
         Reclaiming is delayed while another client keeps taking the session back, otherwise
         the two sides ping-pong: every reclaim logs the other one out, which makes it log in
@@ -152,9 +171,15 @@ class AuthManager:
         return await self.async_login()
 
     async def oem(self, path: str, payload: Any = None) -> dict[str, Any]:
-        """Authenticated OEM request with one re-login retry on auth failure."""
+        """Authenticated OEM request, retried once if the token turns out to be unusable."""
         token = await self.async_get_token()
         try:
+            result = await self._transport.oem_request(path, payload, access_token=token)
+        except CredentialsRejectedError:
+            # The credentials themselves were refused. Logging in would resend them.
+            raise
+        except TokenExpiredError:
+            token = await self._async_relogin()
             result = await self._transport.oem_request(path, payload, access_token=token)
         except AuthError:
             token = await self._async_recover()
@@ -162,9 +187,14 @@ class AuthManager:
         return result
 
     async def tob(self, path: str, payload: Any = None) -> dict[str, Any]:
-        """Authenticated ToB request with one re-login retry on auth failure."""
+        """Authenticated ToB request, retried once if the token turns out to be unusable."""
         token = await self.async_get_token()
         try:
+            result = await self._transport.tob_request(path, payload, access_token=token)
+        except CredentialsRejectedError:
+            raise
+        except TokenExpiredError:
+            token = await self._async_relogin()
             result = await self._transport.tob_request(path, payload, access_token=token)
         except AuthError:
             token = await self._async_recover()

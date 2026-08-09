@@ -7,7 +7,11 @@ import pytest
 
 from custom_components.holabrain.aiodollin.auth.manager import AuthManager
 from custom_components.holabrain.aiodollin.auth.store import InMemoryTokenStore, Session
-from custom_components.holabrain.aiodollin.exceptions import AuthError
+from custom_components.holabrain.aiodollin.exceptions import (
+    AuthError,
+    CredentialsRejectedError,
+    TokenExpiredError,
+)
 
 
 class FakeTransport:
@@ -101,3 +105,99 @@ async def test_auth_error_without_credentials_is_not_retried_into_a_loop():
     auth = AuthManager(transport, store, account="", password="")
     with pytest.raises(AuthError):
         await auth.tob("/midea/open/business/v1/x")
+
+
+@pytest.mark.asyncio
+async def test_an_expired_token_is_replaced_and_the_request_retried():
+    """The natural end of a token's life must be invisible to the caller."""
+    transport = FakeTransport(
+        oem=[
+            TokenExpiredError("token invalid"),
+            {"code": 0, "data": {"accessToken": "TOK-2", "uid": "42"}},
+            {"code": 0, "data": {"ok": 1}},
+        ]
+    )
+    auth = AuthManager(
+        transport, InMemoryTokenStore(Session(access_token="STALE")), account="a@b.c",
+        password="pw",
+    )
+
+    result = await auth.oem("/v1/thing")
+
+    assert result["data"]["ok"] == 1
+    # The retried request must carry the new token, not the one the cloud just refused.
+    assert transport.oem_calls[-1][2] == "TOK-2"
+
+
+@pytest.mark.asyncio
+async def test_an_expiry_is_not_counted_as_a_session_takeover():
+    """The back-off exists to stop a tug-of-war with the phone app. A token reaching the
+    end of its life is not a tug-of-war, and charging it there escalates the cool-down
+    until a later poll is refused outright."""
+    transport = FakeTransport(
+        oem=[
+            TokenExpiredError("token invalid"),
+            {"code": 0, "data": {"accessToken": "TOK-2", "uid": "42"}},
+            {"code": 0, "data": {"ok": 1}},
+        ]
+    )
+    auth = AuthManager(
+        transport, InMemoryTokenStore(Session(access_token="STALE")), account="a@b.c",
+        password="pw",
+    )
+
+    await auth.oem("/v1/thing")
+
+    assert auth.evictions == 0
+
+
+@pytest.mark.asyncio
+async def test_rejected_credentials_never_trigger_another_login():
+    """Resending a password the cloud just refused is how an account gets locked."""
+    transport = FakeTransport(oem=[CredentialsRejectedError("wrong credentials")])
+    auth = AuthManager(
+        transport, InMemoryTokenStore(Session(access_token="STALE")), account="a@b.c",
+        password="pw",
+    )
+
+    with pytest.raises(CredentialsRejectedError):
+        await auth.oem("/v1/thing")
+
+    # Exactly one request: the original. No login was attempted.
+    assert len(transport.oem_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_second_expiry_after_the_retry_is_not_retried_again():
+    """One retry, never a loop — a cloud that rejects every token must not be hammered."""
+    transport = FakeTransport(
+        oem=[
+            TokenExpiredError("token invalid"),
+            {"code": 0, "data": {"accessToken": "TOK-2", "uid": "42"}},
+            TokenExpiredError("token invalid"),
+        ]
+    )
+    auth = AuthManager(
+        transport, InMemoryTokenStore(Session(access_token="STALE")), account="a@b.c",
+        password="pw",
+    )
+
+    with pytest.raises(TokenExpiredError):
+        await auth.oem("/v1/thing")
+
+    assert len(transport.oem_calls) == 3  # original, login, retry — and no more
+
+
+@pytest.mark.asyncio
+async def test_a_failed_relogin_does_not_leave_a_dead_token_behind():
+    """A stored token the cloud has already refused must never be handed out as usable."""
+    store = InMemoryTokenStore(Session(access_token="STALE"))
+    transport = FakeTransport(
+        oem=[TokenExpiredError("token invalid"), CredentialsRejectedError("wrong password")]
+    )
+    auth = AuthManager(transport, store, account="a@b.c", password="pw")
+
+    with pytest.raises(CredentialsRejectedError):
+        await auth.oem("/v1/thing")
+
+    assert await store.load() is None
