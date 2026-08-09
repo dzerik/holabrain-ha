@@ -149,6 +149,9 @@
     "refresh_capabilities": {
       "service": "mdi:refresh"
     },
+    "refresh_token": {
+      "service": "mdi:key-change"
+    },
     "rename_device": {
       "service": "mdi:rename-outline"
     },

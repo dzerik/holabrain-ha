@@ -12,6 +12,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.holabrain.const import DOMAIN
 from tests.conftest import DISHWASHER_CODE, FakeCloud
@@ -125,3 +126,36 @@ async def test_actions_reject_a_device_that_is_not_an_appliance(
             {"device_id": foreign.id, "name": "nope"},
             blocking=True,
         )
+
+
+async def test_refresh_token_signs_in_again(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud
+) -> None:
+    """The service is the supported way out of a session the cloud will not accept."""
+    assert await setup_integration()
+    logins_before = cloud.logins
+
+    await hass.services.async_call(DOMAIN, "refresh_token", {}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert cloud.logins == logins_before + 1
+
+
+async def test_refresh_token_says_so_when_no_account_is_loaded(
+    hass: HomeAssistant, setup_integration, config_entry: MockConfigEntry
+) -> None:
+    """An automation referencing the action keeps validating while the entry is unloaded,
+    so the call itself has to explain why nothing happened.
+
+    Services are registered once in ``async_setup`` and stay registered, so proving this
+    path needs an entry that was set up and then unloaded — not one that was never set up,
+    which would pass for the wrong reason (``ServiceNotFound`` is itself a
+    ``ServiceValidationError``).
+    """
+    assert await setup_integration()
+    await hass.config_entries.async_unload(config_entry.entry_id)
+
+    with pytest.raises(ServiceValidationError) as exc_info:
+        await hass.services.async_call(DOMAIN, "refresh_token", {}, blocking=True)
+
+    assert exc_info.value.translation_key == "no_loaded_account"

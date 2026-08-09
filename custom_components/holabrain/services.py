@@ -14,6 +14,11 @@ entity set if the answer changed. Capability profiles are cached and revalidated
 timer, so this is the escape hatch for the two cases a timer cannot cover: a feature was
 enabled (or the appliance was serviced) and the user does not want to wait, or a profile was
 resolved while the cloud was degraded.
+
+``holabrain.refresh_token`` signs in again with the stored credentials and replaces the
+account token. The integration recovers from an expired token on its own, so this is for the
+case it cannot: a session the cloud keeps refusing. Like every account request it claims the
+account's only session, which signs the vendor's mobile app out.
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_REFRESH_CAPABILITIES = "refresh_capabilities"
+SERVICE_REFRESH_TOKEN = "refresh_token"
 SERVICE_SCAN_DEVICES = "scan_devices"
 SERVICE_RENAME_DEVICE = "rename_device"
 SERVICE_UNBIND_DEVICE = "unbind_device"
@@ -97,11 +103,25 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 removed,
             )
 
+    async def _async_refresh_token(call: ServiceCall) -> None:
+        entries = _target_entries(hass, call)
+        if not entries:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_loaded_account"
+            )
+        for entry in entries:
+            coordinator = entry.runtime_data.coordinator
+            # Raises HomeAssistantError with the reason; nothing to add here.
+            await coordinator.async_refresh_token()
+
     hass.services.async_register(
         DOMAIN, SERVICE_REFRESH_CAPABILITIES, _async_refresh, schema=_REFRESH_SCHEMA
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SCAN_DEVICES, _async_scan, schema=_REFRESH_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_REFRESH_TOKEN, _async_refresh_token, schema=_REFRESH_SCHEMA
     )
 
     async def _async_rename(call: ServiceCall) -> None:

@@ -55,6 +55,20 @@
           "description": "Must be enabled. It guards against an accidental call, because the removal cannot be undone from Home Assistant."
         }
       }
+    },
+    "refresh_token": {
+      "name": "Refresh account token",
+      "description": "Signs in again with the stored credentials and replaces the account token. The integration replaces an expired token by itself, so reach for this when a session is stuck. It claims the account's only session and signs the HolaBrain mobile app out.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Limit the refresh to one HolaBrain account. All accounts are refreshed when omitted."
+        },
+        "device_id": {
+          "name": "Device",
+          "description": "Limit the refresh to the account this device belongs to."
+        }
+      }
     }
   },
   "config": {

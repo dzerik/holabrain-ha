@@ -55,6 +55,20 @@
           "description": "Yoqilishi shart. Tasodifiy chaqiruvdan himoya qiladi: o'chirishni Home Assistant'dan bekor qilib bo'lmaydi."
         }
       }
+    },
+    "refresh_token": {
+      "name": "Hisob tokenini yangilash",
+      "description": "Saqlangan hisob ma'lumotlari bilan qayta kiradi va hisob tokenini almashtiradi. Muddati o'tgan tokenni integratsiya o'zi almashtiradi, shuning uchun bu — qotib qolgan seans uchun vosita. Amal hisobning yagona seansini egallaydi va HolaBrain mobil ilovasidan chiqarib yuboradi.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Hisob",
+          "description": "Yangilashni bitta HolaBrain hisobi bilan cheklash. Ko'rsatilmasa, barchasi yangilanadi."
+        },
+        "device_id": {
+          "name": "Qurilma",
+          "description": "Yangilashni ushbu qurilma tegishli bo'lgan hisob bilan cheklash."
+        }
+      }
     }
   },
   "config": {

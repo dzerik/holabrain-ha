@@ -48,3 +48,16 @@ unbind_device:
       default: false
       selector:
         boolean:
+
+refresh_token:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: holabrain
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: holabrain
