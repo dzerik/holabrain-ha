@@ -27,10 +27,23 @@ from ..const import (
     REGION_HOSTS,
     SIGNATURE_VERSION,
 )
-from ..exceptions import ApiError, AuthError, NetworkError, RateLimitError
+from ..exceptions import (
+    ApiError,
+    AuthError,
+    CredentialsRejectedError,
+    NetworkError,
+    RateLimitError,
+    TokenExpiredError,
+)
 
-# Business codes that mean "your session/region is no longer valid, re-authenticate".
-_AUTH_CODES = frozenset({5, 14005, 3114016})
+# The token is stale. Logging in again fixes it, and nothing is competing for the account.
+_TOKEN_EXPIRED_CODES = frozenset({14005})
+# The account or the password itself was refused. Logging in again would resend the same
+# rejected credentials, so the caller must stop and ask the user.
+_CREDENTIALS_REJECTED_CODES = frozenset({3114016})
+# Auth failures whose meaning is not known. They keep the conservative reading — assume the
+# session was taken over by another client — because that path backs off instead of looping.
+_AUTH_CODES = frozenset({5}) | _TOKEN_EXPIRED_CODES | _CREDENTIALS_REJECTED_CODES
 _RATE_LIMIT_CODES = frozenset({4001, 429})
 
 
@@ -154,6 +167,10 @@ class HttpTransport:
         if code in (0, None):
             return data
         message = str(data.get("msg") or data.get("message") or "").strip() or f"code {code}"
+        if code in _TOKEN_EXPIRED_CODES:
+            raise TokenExpiredError(message)
+        if code in _CREDENTIALS_REJECTED_CODES:
+            raise CredentialsRejectedError(message)
         if code in _AUTH_CODES:
             raise AuthError(message)
         if code in _RATE_LIMIT_CODES:

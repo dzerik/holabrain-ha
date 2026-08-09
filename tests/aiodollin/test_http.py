@@ -13,8 +13,10 @@ from custom_components.holabrain.aiodollin.const import CLIENT_SECRET
 from custom_components.holabrain.aiodollin.exceptions import (
     ApiError,
     AuthError,
+    CredentialsRejectedError,
     NetworkError,
     RateLimitError,
+    TokenExpiredError,
 )
 from custom_components.holabrain.aiodollin.transport.http import HttpTransport
 
@@ -142,3 +144,26 @@ async def test_transport_failure_is_network_error():
 def test_unknown_region_rejected():
     with pytest.raises(ValueError):
         HttpTransport(httpx.AsyncClient(), region="mars")
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (14005, TokenExpiredError),
+        (3114016, CredentialsRejectedError),
+        (5, AuthError),
+    ],
+)
+@pytest.mark.asyncio
+async def test_auth_codes_are_told_apart(code, expected):
+    """The auth layer reacts differently to each of these, so the code must survive.
+
+    An expired token is re-logged-in immediately; rejected credentials must never trigger
+    another login; an unrecognised code keeps the conservative takeover handling.
+    """
+    client = _client(lambda r: httpx.Response(200, json={"code": code, "msg": "x"}))
+    transport = HttpTransport(client, region="eu")
+    with pytest.raises(expected) as excinfo:
+        await transport.oem_request("/v1/x")
+    assert type(excinfo.value) is expected
+    await client.aclose()

@@ -30,10 +30,12 @@ from .dto.state import DeviceState
 from .exceptions import (
     ApiError,
     AuthError,
+    CredentialsRejectedError,
     DollinError,
     NetworkError,
     RateLimitError,
     SessionTakeoverError,
+    TokenExpiredError,
 )
 from .pairing import derive_verification_code, encrypt_serial
 
@@ -46,6 +48,7 @@ __all__ = [
     "CapabilityProfile",
     "Certificate",
     "Claimable",
+    "CredentialsRejectedError",
     "Device",
     "DeviceState",
     "DiscoveredAppliance",
@@ -62,6 +65,7 @@ __all__ = [
     "Session",
     "SessionTakeoverError",
     "StaticVariant",
+    "TokenExpiredError",
     "TokenStore",
     "async_discover",
     "decode_bitfield",

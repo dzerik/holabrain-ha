@@ -25,6 +25,24 @@ class SessionTakeoverError(AuthError):
     """
 
 
+class TokenExpiredError(AuthError):
+    """The access token is no longer accepted; a fresh login fixes it.
+
+    Distinct from a plain :class:`AuthError` because nothing is actually wrong — tokens
+    have a lifetime. Callers may log in again straight away, without the back-off that
+    exists to stop two clients fighting over the account's single session.
+    """
+
+
+class CredentialsRejectedError(AuthError):
+    """The cloud refused the account or the password itself.
+
+    Logging in again would resend exactly the credentials that were just rejected, so
+    callers must not: the only fix is the user supplying new ones, and retrying risks
+    locking the account.
+    """
+
+
 class NetworkError(DollinError):
     """The request could not be completed due to a transport/connectivity problem."""
 
