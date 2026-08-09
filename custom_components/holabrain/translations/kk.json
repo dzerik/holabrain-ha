@@ -529,7 +529,8 @@
     },
     "child_lock": {
       "message": "Балалардан қорғау құлпы қосулы. Алдымен оны құрылғыда өшіріңіз."
-    }
+    },
+    "token_refresh_failed": { "message": "Есептік жазба токенін жаңарту мүмкін болмады: {error}" }
   },
   "issues": {
     "unsupported_category": {

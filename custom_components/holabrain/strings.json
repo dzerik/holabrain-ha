@@ -529,7 +529,8 @@
     },
     "child_lock": {
       "message": "The child lock is on. Turn it off on the appliance first."
-    }
+    },
+    "token_refresh_failed": { "message": "Could not refresh the account token: {error}" }
   },
   "issues": {
     "unsupported_category": {

@@ -14,6 +14,7 @@ import httpx
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -21,7 +22,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.holabrain.aiodollin.exceptions import ApiError
-from custom_components.holabrain.const import DEFAULT_SCAN_INTERVAL
+from custom_components.holabrain.const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from tests.conftest import DISHWASHER_CODE, FakeCloud, MqttSpy
 
 DEV_TOPIC = f"eu/eu_{DISHWASHER_CODE}/dev"
@@ -577,3 +578,36 @@ async def test_a_failed_command_does_not_leave_a_broken_coordinator(
 def _coordinator(hass: HomeAssistant):
     entry = hass.config_entries.async_entries("holabrain")[0]
     return entry.runtime_data.coordinator
+
+
+# --- manual token refresh -----------------------------------------------------------------
+
+
+async def test_a_manual_token_refresh_logs_in_again(
+    hass: HomeAssistant, setup_integration, config_entry, cloud: FakeCloud
+) -> None:
+    """The button and the service exist to get a wedged session unstuck."""
+    assert await setup_integration()
+    coordinator = config_entry.runtime_data.coordinator
+    logins_before = cloud.logins
+
+    await coordinator.async_refresh_token()
+
+    assert cloud.logins == logins_before + 1
+
+
+async def test_a_refusal_of_the_credentials_asks_the_user_to_sign_in_again(
+    hass: HomeAssistant, setup_integration, config_entry, cloud: FakeCloud
+) -> None:
+    """A password changed in the mobile app is the common cause. Failing silently would
+    leave the user pressing a button that never works and no way to find out why."""
+    assert await setup_integration()
+    coordinator = config_entry.runtime_data.coordinator
+    cloud.fail_next(FakeCloud.LOGIN, {"code": 3114016, "msg": "wrong credentials"})
+
+    with pytest.raises(HomeAssistantError):
+        await coordinator.async_refresh_token()
+
+    await hass.async_block_till_done()
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert any(flow["context"].get("source") == "reauth" for flow in flows)

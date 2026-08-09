@@ -529,7 +529,8 @@
     },
     "child_lock": {
       "message": "Уключана блакіроўка ад дзяцей. Спачатку адключыце яе на прыборы."
-    }
+    },
+    "token_refresh_failed": { "message": "Не ўдалося абнавіць токен акаўнта: {error}" }
   },
   "issues": {
     "unsupported_category": {

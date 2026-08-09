@@ -38,7 +38,11 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    HomeAssistantError,
+)
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_time_interval
@@ -370,6 +374,31 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         self._explicit_refresh = True
         await self.async_request_refresh()
         await self.async_fetch_consumption()
+
+    async def async_refresh_token(self) -> None:
+        """Sign in again with the stored credentials, whatever the current session says.
+
+        This is the escape hatch for a session that is wedged: the cloud is holding a token
+        it will not accept and nothing the integration does on its own is dislodging it.
+        Deliberately does not poll afterwards — `async_refresh_now` already exists for that,
+        and one button doing two account-costing things hides which one failed.
+        """
+        try:
+            await self._client.async_refresh_token()
+        except DollinError as err:
+            if isinstance(err, AuthError):
+                # The credentials themselves are the problem, so no amount of retrying
+                # helps. Home Assistant's re-authentication flow is the only way out.
+                self.config_entry.async_start_reauth(self.hass)
+            # Raised either way: the caller pressed a button and deserves an answer.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="token_refresh_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        _LOGGER.debug(
+            "account token refreshed by request for entry %s", self.config_entry.entry_id
+        )
 
     async def _async_update_data(self) -> dict[str, DeviceState]:
         """Refresh device status.
