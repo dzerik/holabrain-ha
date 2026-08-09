@@ -663,32 +663,23 @@ In `custom_components/holabrain/coordinator.py`, add directly after `async_refre
         """
         try:
             await self._client.async_refresh_token()
-        except AuthError as err:
-            # The credentials themselves are the problem, so no amount of retrying helps.
-            # Home Assistant's re-authentication flow is the only way out; start it, then
-            # still raise, because the caller pressed a button and deserves an answer.
-            self.config_entry.async_start_reauth(self.hass)
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="token_refresh_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
         except DollinError as err:
+            if isinstance(err, AuthError):
+                # The credentials themselves are the problem, so no amount of retrying
+                # helps. Home Assistant's re-authentication flow is the only way out.
+                self.config_entry.async_start_reauth(self.hass)
+            # Raised either way: the caller pressed a button and deserves an answer.
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="token_refresh_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        _LOGGER.debug("account token refreshed by request for entry %s", self.config_entry.entry_id)
-```
-
-The last line exceeds 100 characters — split it:
-
-```python
         _LOGGER.debug(
             "account token refreshed by request for entry %s", self.config_entry.entry_id
         )
 ```
+
+One `except` with an `isinstance` check rather than two clauses: `AuthError` subclasses `DollinError`, so two clauses would carry a byte-identical `raise` and the message would live in two places.
 
 Add `HomeAssistantError` to the existing `from homeassistant.exceptions import ...` at `coordinator.py:41`.
 
