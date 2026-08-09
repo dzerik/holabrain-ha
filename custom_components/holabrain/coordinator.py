@@ -59,6 +59,7 @@ from .aiodollin import (
     DollinError,
     RateLimitError,
     SessionTakeoverError,
+    TokenExpiredError,
 )
 from .aiodollin.api.catalog import DeviceCatalog
 from .aiodollin.api.statistics import PERIOD_MONTH, PERIOD_YEAR, ConsumptionReport
@@ -232,6 +233,15 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             # The vendor app is holding the session. Nothing is wrong with the credentials,
             # so this is a retry, not a re-authentication prompt.
             raise ConfigEntryNotReady(str(err)) from err
+        except TokenExpiredError as err:
+            # A token that reached the end of its life, not credentials the cloud refuses.
+            # AuthManager already tries a silent relogin for this (see
+            # AuthManager._async_authenticated); reaching here means either that relogin's
+            # retry was refused again too — most plausibly another client claimed the
+            # session in the gap — or there was no cached session at all yet. Neither is
+            # proof the password is wrong, so this is a retry, not a re-authentication
+            # prompt.
+            raise ConfigEntryNotReady(str(err)) from err
         except AuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except DollinError as err:
@@ -396,7 +406,7 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
                 translation_key="token_refresh_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
-        _LOGGER.debug(
+        _LOGGER.info(
             "account token refreshed by request for entry %s", self.config_entry.entry_id
         )
 
@@ -450,6 +460,17 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
                 # session on its own once the other client goes idle.
                 errors = len(self.devices)
                 _LOGGER.debug("poll skipped, the account session is elsewhere: %s", err)
+                break
+            except TokenExpiredError as err:
+                # A token that reached the end of its life, not credentials the cloud
+                # refuses. AuthManager already tries a silent relogin for this (see
+                # AuthManager._async_authenticated); reaching here means either that
+                # relogin's retry was refused again too — most plausibly another client
+                # claimed the session in the gap — or there was no cached session at all
+                # yet. Neither is proof the password is wrong, so this is treated as
+                # transient, exactly like a takeover, rather than prompting for one.
+                errors = len(self.devices)
+                _LOGGER.debug("poll skipped, the renewed token was refused again: %s", err)
                 break
             except AuthError as err:
                 # Credentials the cloud refuses (typically a password changed in the app).

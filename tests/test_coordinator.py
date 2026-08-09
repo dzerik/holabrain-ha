@@ -611,3 +611,26 @@ async def test_a_refusal_of_the_credentials_asks_the_user_to_sign_in_again(
     await hass.async_block_till_done()
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert any(flow["context"].get("source") == "reauth" for flow in flows)
+
+
+async def test_a_network_failure_during_manual_refresh_does_not_ask_to_sign_in_again(
+    hass: HomeAssistant, setup_integration, config_entry, cloud: FakeCloud
+) -> None:
+    """`async_refresh_token` only starts reauth for `isinstance(err, AuthError)`.
+
+    Nothing pinned the negative case: a transport-level failure (the internet blipping, the
+    cloud being briefly down) must raise for the caller to see, but must not be mistaken for
+    rejected credentials. Widening that `isinstance` check later would nag the user with a
+    password prompt on every network hiccup, and the suite would stay green unless this is
+    covered.
+    """
+    assert await setup_integration()
+    coordinator = config_entry.runtime_data.coordinator
+    cloud.fail_next(FakeCloud.LOGIN, httpx.ConnectError("down"))
+
+    with pytest.raises(HomeAssistantError):
+        await coordinator.async_refresh_token()
+
+    await hass.async_block_till_done()
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert not any(flow["context"].get("source") == "reauth" for flow in flows)

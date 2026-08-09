@@ -14,6 +14,7 @@ import pytest
 
 from custom_components.holabrain.aiodollin.auth.manager import (
     EVICTION_FORGET_SECONDS,
+    EXPIRY_RELOGIN_LIMIT,
     LOGIN_BACKOFF_SECONDS,
     AuthManager,
 )
@@ -287,3 +288,85 @@ async def test_a_manual_refresh_ignores_the_cool_down():
     # The cool-down state is cleared, so the next poll is not still serving the old debt.
     assert manager.evictions == 0
     await manager.oem("/v1/thing")  # must not raise
+
+
+# --- the expiry budget --------------------------------------------------------------------
+#
+# `TokenExpiredError` is a guess reconstructed from fixtures, not from vendor documentation
+# (see the design doc's "Known risk"). If the guess is wrong and 14005 actually means "the
+# session was claimed elsewhere", the fast path below would re-login forever against a
+# client that keeps reclaiming the session — the ping-pong protection exists precisely to
+# prevent that, and an unbudgeted expiry branch would switch it off entirely.
+
+
+@pytest.mark.asyncio
+async def test_expiries_within_the_budget_never_touch_evictions():
+    """The common case — a token genuinely reaching the end of its life — must stay free."""
+    clock = FakeClock()
+    cloud = Cloud()
+    manager = _manager(cloud, clock)
+    await manager.oem("/v1/thing")
+
+    for _ in range(EXPIRY_RELOGIN_LIMIT):
+        cloud.expire_the_current_token()
+        await manager.oem("/v1/thing")  # must not raise
+
+    assert manager.evictions == 0
+
+
+@pytest.mark.asyncio
+async def test_an_expiry_past_the_budget_falls_back_to_the_cool_down_path():
+    """Past the budget, the branch stops trusting its own reading of the business code.
+
+    Routing through `_async_recover` is what re-enables the ping-pong protection if the
+    classification turns out to be wrong: the next several rejections, whatever the cloud
+    calls them, are charged to the same counter a takeover would be.
+    """
+    clock = FakeClock()
+    cloud = Cloud()
+    manager = _manager(cloud, clock)
+    await manager.oem("/v1/thing")
+
+    for _ in range(EXPIRY_RELOGIN_LIMIT):
+        cloud.expire_the_current_token()
+        await manager.oem("/v1/thing")
+    assert manager.evictions == 0
+
+    logins_before = cloud.logins
+    cloud.expire_the_current_token()
+    await manager.oem("/v1/thing")  # the (limit + 1)th expiry inside the window
+
+    # Reclaimed rather than refused (the first eviction's cool-down is 0), but counted.
+    assert cloud.logins == logins_before + 1
+    assert manager.evictions == 1
+
+
+@pytest.mark.asyncio
+async def test_an_expiry_is_served_immediately_despite_an_elevated_cool_down():
+    """The expiry branch bypasses an active back-off by design — the sharpest edge of this
+    design. Nothing else pins that an expiry actually takes the fast path once the cool-down
+    has grown from earlier, unrelated takeovers.
+    """
+    clock = FakeClock()
+    cloud = Cloud()
+    manager = _manager(cloud, clock)
+    await manager.oem("/v1/thing")
+
+    # Two takeovers, each reclaimed after waiting out its own cool-down, raise the cool-down
+    # that would apply to a *third* takeover without ever hitting SessionTakeoverError.
+    cloud.other_client_logs_in()
+    await manager.oem("/v1/thing")
+    clock.advance(LOGIN_BACKOFF_SECONDS[1] + 1)
+
+    cloud.other_client_logs_in()
+    await manager.oem("/v1/thing")
+    assert manager.evictions == 2  # a further takeover right now would hit LOGIN_BACKOFF_SECONDS[2]
+
+    # No time passes here: if the expiry went through `_async_recover` it would have to wait
+    # out that cool-down and raise, exactly like a real takeover would right now.
+    logins_before = cloud.logins
+    cloud.expire_the_current_token()
+    await manager.oem("/v1/thing")  # must not raise, must not wait
+
+    assert cloud.logins == logins_before + 1
+    assert manager.evictions == 2  # the expiry left the takeover cool-down state untouched

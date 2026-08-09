@@ -35,10 +35,22 @@ currently means reloading the config entry or re-entering the password.
 ### Known risk
 
 The code-to-meaning mapping is reconstructed from test fixtures, not from vendor
-documentation. If `14005` turns out to mean "the session was claimed elsewhere", the
-ping-pong protection stops applying to it. This is the first place to look if logs start
-showing frequent re-logins. Unrecognised auth codes deliberately keep today's behaviour, so
-the blast radius is limited to the two codes named below.
+documentation, and the evidence for `14005` cuts both ways. `tests/conftest.py` returns
+`14005` for *any* token that is not the account's currently live one — which is exactly the
+takeover signature in a one-session cloud, not an expiry. But `tests/test_discovery.py:297`
+uses `14005` with the message "unusual activity", and that message is the one
+`tests/aiodollin/test_session_takeover.py` uses for a genuine takeover. So the fixtures do
+not cleanly separate "expired" from "taken over" for this code; `TokenExpiredError` is a
+best guess, not a confirmed reading.
+
+If `14005` turns out to mean "the session was claimed elsewhere", the ping-pong protection
+stops applying to it, and — unlike a single bypassed check — the expiry branch would retry
+on *every* occurrence, forever, against a client that keeps reclaiming the session. That is
+why the branch is budgeted (`EXPIRY_RELOGIN_LIMIT` in `auth/manager.py`): past that many
+expiries inside `EVICTION_FORGET_SECONDS`, it stops trusting its own reading and falls back
+to `_async_recover()`'s cool-down, the same as an unrecognised code would. This is the first
+place to look if logs start showing frequent re-logins. Unrecognised auth codes deliberately
+keep today's behaviour, so the blast radius is limited to the two codes named below.
 
 ## Design
 

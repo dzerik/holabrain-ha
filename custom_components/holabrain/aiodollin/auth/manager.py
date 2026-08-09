@@ -43,11 +43,21 @@ from .store import Session, TokenStore
 # happened recently. The first one retries immediately, because a single unexplained
 # rejection is usually a one-off. Further ones back off: a takeover shortly after we
 # reclaimed the session means another client is actively using the account, and racing it
-# helps nobody. An expired token does not come through here at all — see `_async_relogin`.
+# helps nobody. An expired token does not come through here at all under normal conditions —
+# see `_async_relogin` — except past `EXPIRY_RELOGIN_LIMIT`, where it falls back to this path.
 LOGIN_BACKOFF_SECONDS: tuple[float, ...] = (0.0, 60.0, 300.0, 900.0)
 
-# A takeover this long after the previous one is unrelated, so the counter starts over.
+# A takeover this long after the previous one is unrelated, so the counter starts over. Also
+# the window `EXPIRY_RELOGIN_LIMIT` counts expiries in, so a burst of either is judged on the
+# same timescale.
 EVICTION_FORGET_SECONDS = 1800.0
+
+# An expired token is replaced without the takeover back-off, because expiry is not a fight
+# over the session. But the reading of the cloud's business code is reconstructed rather than
+# documented: if it is wrong, this branch would re-login forever against a client that keeps
+# reclaiming the session. Past this many expiries inside EVICTION_FORGET_SECONDS the branch
+# stops trusting its own reading and falls back to the cool-down.
+EXPIRY_RELOGIN_LIMIT = 5
 
 
 class AuthManager:
@@ -73,6 +83,8 @@ class AuthManager:
         self._last_login: float | None = None
         self._last_eviction: float | None = None
         self._evictions = 0
+        self._expiry_window_start: float | None = None
+        self._expiries_in_window = 0
 
     @property
     def evictions(self) -> int:
@@ -82,6 +94,23 @@ class AuthManager:
     def _cooldown(self) -> float:
         index = min(self._evictions, len(LOGIN_BACKOFF_SECONDS) - 1)
         return LOGIN_BACKOFF_SECONDS[index]
+
+    def _expiry_within_budget(self) -> bool:
+        """Whether another expiry may still take the fast path (no back-off) this window.
+
+        Shares `EVICTION_FORGET_SECONDS` with the takeover counter deliberately: both are
+        asking the same question — is this a burst worth distrusting? — just for different
+        readings of the cloud's response.
+        """
+        now = self._clock()
+        if (
+            self._expiry_window_start is None
+            or now - self._expiry_window_start > EVICTION_FORGET_SECONDS
+        ):
+            self._expiry_window_start = now
+            self._expiries_in_window = 0
+        self._expiries_in_window += 1
+        return self._expiries_in_window <= EXPIRY_RELOGIN_LIMIT
 
     def _note_eviction(self) -> float:
         """Record a takeover and return how long to wait before reclaiming the session."""
@@ -146,9 +175,14 @@ class AuthManager:
         integration racing the mobile app on its own initiative, and this is not the
         integration's initiative. Leaving the counter raised would also make the next few
         polls pay for a debt the user has just settled by hand.
+
+        The expiry budget is reset for the same reason: it exists to stop distrusting the
+        expiry classification during a burst this login had nothing to do with.
         """
         self._evictions = 0
         self._last_eviction = None
+        self._expiry_window_start = None
+        self._expiries_in_window = 0
         return await self._async_relogin()
 
     async def _async_relogin(self) -> str:
@@ -191,11 +225,14 @@ class AuthManager:
         """Attach the current token to `request` and retry once if it turns out unusable.
 
         Which retry applies depends on why the token was refused: an expired one is
-        replaced via :meth:`_async_relogin` and the call retried right away; a session
-        taken over by another client goes through :meth:`_async_recover`'s cool-down before
-        retrying; refused credentials stop the call rather than resending them. The retried
-        call sits outside the `except` that triggered it, so a second failure propagates
-        instead of looping.
+        replaced via :meth:`_async_relogin` and the call retried right away, unless
+        `EXPIRY_RELOGIN_LIMIT` expiries have already happened inside the same window, in
+        which case it is treated as a takeover instead — the classification is reconstructed
+        from fixtures, not documented, so an unbounded fast path would be a way to re-login
+        forever if that reading is wrong; a session taken over by another client goes
+        through :meth:`_async_recover`'s cool-down before retrying; refused credentials stop
+        the call rather than resending them. The retried call sits outside the `except` that
+        triggered it, so a second failure propagates instead of looping.
         """
         token = await self.async_get_token()
         try:
@@ -204,7 +241,10 @@ class AuthManager:
             # The credentials themselves were refused. Logging in would resend them.
             raise
         except TokenExpiredError:
-            token = await self._async_relogin()
+            if self._expiry_within_budget():
+                token = await self._async_relogin()
+            else:
+                token = await self._async_recover()
             result = await request(path, payload, access_token=token)
         except AuthError:
             token = await self._async_recover()

@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.holabrain.const import DOMAIN
+from tests.conftest import FakeCloud
 
 
 async def test_the_account_device_is_not_named_after_the_email(
@@ -82,3 +83,27 @@ async def test_the_token_button_exists_but_is_not_offered_by_default(
     assert entry is not None
     assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
+
+
+async def test_pressing_the_token_button_reaches_the_same_path_as_the_service(
+    hass: HomeAssistant, setup_integration, config_entry, cloud: FakeCloud
+) -> None:
+    """Existence and disabled-by-default are covered above; nothing proves pressing it
+    actually does anything. Enabled like a user would from the entity settings, then pressed
+    through the same `button.press` service call Home Assistant itself issues on a tap.
+    """
+    assert await setup_integration()
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "button", DOMAIN, f"{config_entry.entry_id}_refresh_token"
+    )
+    registry.async_update_entity(entity_id, disabled_by=None)
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    logins_before = cloud.logins
+    await hass.services.async_call(
+        "button", "press", {"entity_id": entity_id}, blocking=True
+    )
+
+    assert cloud.logins == logins_before + 1
