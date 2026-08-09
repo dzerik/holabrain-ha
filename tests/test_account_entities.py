@@ -7,6 +7,7 @@ the moment that dishwasher was removed from the account.
 
 from __future__ import annotations
 
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -59,3 +60,25 @@ async def test_the_account_controls_do_not_belong_to_an_appliance(
         identifiers={(DOMAIN, f"account_{config_entry.entry_id}")}
     )
     assert entry.device_id == account_device.id
+
+
+async def test_the_token_button_exists_but_is_not_offered_by_default(
+    hass: HomeAssistant, setup_integration, config_entry
+) -> None:
+    """Pressing it signs the user out of the vendor's mobile app.
+
+    That is a reasonable thing to ask for and an unreasonable thing to do by accident, so
+    the button is registered but left disabled until someone goes looking for it.
+    """
+    assert await setup_integration()
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "button", DOMAIN, f"{config_entry.entry_id}_refresh_token"
+    )
+    assert entity_id is not None
+
+    entry = registry.async_get(entity_id)
+    assert entry is not None
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert entry.entity_category is EntityCategory.DIAGNOSTIC

@@ -32,6 +32,9 @@
       },
       "refresh_now": {
         "default": "mdi:cloud-download"
+      },
+      "refresh_token": {
+        "default": "mdi:key-change"
       }
     },
     "number": {

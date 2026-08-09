@@ -492,6 +492,9 @@
       },
       "refresh_now": {
         "name": "Refresh now"
+      },
+      "refresh_token": {
+        "name": "Refresh token"
       }
     }
   },

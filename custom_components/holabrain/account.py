@@ -5,8 +5,9 @@ loser finds out by getting an error on its next request. There is no way to shar
 the integration cannot silently decide whether Home Assistant or the phone in the user's
 pocket should win — it has to be asked, and it has to be easy to change your mind.
 
-That is what lives here: a switch for the mode and a button for the one-off refresh that
-makes cooperative mode practical.
+That is what lives here: a switch for the mode, a button for the one-off refresh that makes
+cooperative mode practical, and a button that mints a new session when the current one is
+wedged.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import Any
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -105,3 +107,23 @@ class HolabrainRefreshButton(HolabrainAccountEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_refresh_now()
+
+
+class HolabrainRefreshTokenButton(HolabrainAccountEntity, ButtonEntity):
+    """Sign in again and replace the account token.
+
+    The integration replaces an expired token on its own, so this is not part of normal
+    operation — it is the way out of a session the cloud keeps refusing. Disabled by
+    default because pressing it claims the account's only session, and losing the mobile
+    app's session is not something a stray tap should do.
+    """
+
+    _attr_translation_key = "refresh_token"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: HolabrainCoordinator) -> None:
+        super().__init__(coordinator, "refresh_token")
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_refresh_token()
