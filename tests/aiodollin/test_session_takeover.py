@@ -18,7 +18,7 @@ from custom_components.holabrain.aiodollin.auth.manager import (
     AuthManager,
 )
 from custom_components.holabrain.aiodollin.auth.store import InMemoryTokenStore, Session
-from custom_components.holabrain.aiodollin.exceptions import AuthError
+from custom_components.holabrain.aiodollin.exceptions import AuthError, TokenExpiredError
 
 
 class FakeClock:
@@ -39,6 +39,7 @@ class Cloud:
         self.live: str | None = None
         self.logins = 0
         self.calls = 0
+        self._expiring = 0
 
     def login(self) -> str:
         self.logins += 1
@@ -47,12 +48,20 @@ class Cloud:
 
     def use(self, token: str) -> None:
         self.calls += 1
+        if self._expiring:
+            # An ordinary expiry, not a takeover: the token used to be valid.
+            self._expiring -= 1
+            raise TokenExpiredError("token invalid")
         if token != self.live:
             raise AuthError("We've detected unusual activity on your account")
 
     def other_client_logs_in(self) -> None:
         """The phone app takes the session over."""
         self.login()
+
+    def expire_the_current_token(self) -> None:
+        """The live token reaches the natural end of its life; the next request rejects it."""
+        self._expiring += 1
 
 
 class FakeTransport:
@@ -234,12 +243,13 @@ async def test_expiries_do_not_escalate_the_cool_down_for_a_later_takeover():
     manager = _manager(cloud, clock)
     await manager.oem("/v1/thing")
 
-    # Three ordinary expiries inside the forget window — this is the path `oem` takes on a
-    # TokenExpiredError, without needing a transport that can raise one.
+    # Three ordinary expiries inside the forget window, driven through the public API.
     for _ in range(3):
-        await manager._async_relogin()
+        cloud.expire_the_current_token()
+        await manager.oem("/v1/thing")
 
     assert manager.evictions == 0
 
     cloud.other_client_logs_in()
     await manager.oem("/v1/thing")  # first takeover: must still be reclaimed immediately
+    assert manager.evictions == 1  # recorded once, not escalated by the earlier expiries

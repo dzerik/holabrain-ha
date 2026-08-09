@@ -25,7 +25,7 @@ Two consequences shape this class:
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ..const import ENCRYPT_KEY, EP_LOGIN
@@ -170,33 +170,39 @@ class AuthManager:
                 )
         return await self.async_login()
 
-    async def oem(self, path: str, payload: Any = None) -> dict[str, Any]:
-        """Authenticated OEM request, retried once if the token turns out to be unusable."""
+    async def _async_authenticated(
+        self,
+        request: Callable[..., Awaitable[dict[str, Any]]],
+        path: str,
+        payload: Any,
+    ) -> dict[str, Any]:
+        """Attach the current token to `request` and retry once if it turns out unusable.
+
+        Which retry applies depends on why the token was refused: an expired one is
+        replaced via :meth:`_async_relogin` and the call retried right away; a session
+        taken over by another client goes through :meth:`_async_recover`'s cool-down before
+        retrying; refused credentials stop the call rather than resending them. The retried
+        call sits outside the `except` that triggered it, so a second failure propagates
+        instead of looping.
+        """
         token = await self.async_get_token()
         try:
-            result = await self._transport.oem_request(path, payload, access_token=token)
+            result = await request(path, payload, access_token=token)
         except CredentialsRejectedError:
             # The credentials themselves were refused. Logging in would resend them.
             raise
         except TokenExpiredError:
             token = await self._async_relogin()
-            result = await self._transport.oem_request(path, payload, access_token=token)
+            result = await request(path, payload, access_token=token)
         except AuthError:
             token = await self._async_recover()
-            result = await self._transport.oem_request(path, payload, access_token=token)
+            result = await request(path, payload, access_token=token)
         return result
 
+    async def oem(self, path: str, payload: Any = None) -> dict[str, Any]:
+        """Authenticated OEM request. See :meth:`_async_authenticated` for the retry contract."""
+        return await self._async_authenticated(self._transport.oem_request, path, payload)
+
     async def tob(self, path: str, payload: Any = None) -> dict[str, Any]:
-        """Authenticated ToB request, retried once if the token turns out to be unusable."""
-        token = await self.async_get_token()
-        try:
-            result = await self._transport.tob_request(path, payload, access_token=token)
-        except CredentialsRejectedError:
-            raise
-        except TokenExpiredError:
-            token = await self._async_relogin()
-            result = await self._transport.tob_request(path, payload, access_token=token)
-        except AuthError:
-            token = await self._async_recover()
-            result = await self._transport.tob_request(path, payload, access_token=token)
-        return result
+        """Authenticated ToB request. See :meth:`_async_authenticated` for the retry contract."""
+        return await self._async_authenticated(self._transport.tob_request, path, payload)
