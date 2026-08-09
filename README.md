@@ -307,7 +307,7 @@ automation:
 
 ## Services
 
-All four actions are available in **Developer tools → Actions** and in automations.
+All five actions are available in **Developer tools → Actions** and in automations.
 
 ### `holabrain.refresh_capabilities`
 
@@ -338,6 +338,22 @@ data:
 > ⚠️ **This signs the HolaBrain mobile app out.** Listing the account needs the account
 > session, and the cloud allows only one. Everyday monitoring never does this — only this
 > action, the *Configure → Scan* step and the panel's *Scan* button.
+
+### `holabrain.refresh_token`
+
+Signs in again with the stored credentials and replaces the account token. The integration
+replaces an expired token by itself, so reach for this only when a session is stuck — the
+cloud holding a token it will not accept.
+
+```yaml
+action: holabrain.refresh_token
+data:
+  config_entry_id: 01J…       # optional — limits it to one account
+```
+
+> ⚠️ **This signs the HolaBrain mobile app out.** A login claims the account's single
+> session. The same action is available as the **Refresh token** button on the account
+> device, which is disabled by default so it cannot be pressed by accident.
 
 ### `holabrain.rename_device`
 

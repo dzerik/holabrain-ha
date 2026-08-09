@@ -19,6 +19,7 @@ last owns it.
 | **Scan for appliances** (option flow, panel button, `holabrain.scan_devices`) | **Yes, always** |
 | **Add an appliance** (claiming one) | **Yes** |
 | **Refresh now** (account device) | **Yes** — that is what you are asking for |
+| **Refresh token** (account device, `holabrain.refresh_token`) | **Yes** — a login claims the session |
 | Reading consumption figures (exclusive mode, after a wash) | **Yes**, once per cycle |
 
 ## Choosing who wins: cooperative or exclusive

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Action `holabrain.refresh_token` and a disabled-by-default **Refresh token** button on the
+  account device: sign in again with the stored credentials when a session is stuck. Both
+  claim the account's only session and sign the mobile app out.
+
+### Fixed
+
+- An expired access token is now replaced immediately instead of being counted as a session
+  taken over by another client. Ordinary token expiry no longer escalates the reclaim
+  cool-down, which could leave a later poll refused outright.
+- Credentials the cloud rejects no longer trigger another login attempt with the same
+  password.
+
 ## [0.14.0] - 2026-07-27
 
 ### Added
