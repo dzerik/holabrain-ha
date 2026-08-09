@@ -44,6 +44,10 @@ class DollinClient:
         state = await self.devices.async_get_state(thing_code)
         return dict(state.attributes)
 
+    async def async_refresh_token(self) -> str:
+        """Discard the current session and log in again. Claims the account's one session."""
+        return await self._auth.async_refresh_token()
+
     @classmethod
     def create(
         cls,

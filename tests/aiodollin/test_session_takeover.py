@@ -18,7 +18,11 @@ from custom_components.holabrain.aiodollin.auth.manager import (
     AuthManager,
 )
 from custom_components.holabrain.aiodollin.auth.store import InMemoryTokenStore, Session
-from custom_components.holabrain.aiodollin.exceptions import AuthError, TokenExpiredError
+from custom_components.holabrain.aiodollin.exceptions import (
+    AuthError,
+    SessionTakeoverError,
+    TokenExpiredError,
+)
 
 
 class FakeClock:
@@ -253,3 +257,33 @@ async def test_expiries_do_not_escalate_the_cool_down_for_a_later_takeover():
     cloud.other_client_logs_in()
     await manager.oem("/v1/thing")  # first takeover: must still be reclaimed immediately
     assert manager.evictions == 1  # recorded once, not escalated by the earlier expiries
+
+
+@pytest.mark.asyncio
+async def test_a_manual_refresh_ignores_the_cool_down():
+    """The back-off protects the account from the integration's own initiative.
+
+    A person pressing "refresh token" is not the integration's initiative — they have
+    decided the session is worth taking, and a silent no-op would look like a broken
+    button.
+    """
+    clock = FakeClock()
+    cloud = Cloud()
+    manager = _manager(cloud, clock)
+    await manager.oem("/v1/thing")
+
+    # Two takeovers in a row put the manager deep inside a cool-down.
+    cloud.other_client_logs_in()
+    await manager.oem("/v1/thing")
+    cloud.other_client_logs_in()
+    with pytest.raises(SessionTakeoverError):
+        await manager.oem("/v1/thing")
+
+    logins_before = cloud.logins
+    token = await manager.async_refresh_token()
+
+    assert cloud.logins == logins_before + 1
+    assert token == cloud.live
+    # The cool-down state is cleared, so the next poll is not still serving the old debt.
+    assert manager.evictions == 0
+    await manager.oem("/v1/thing")  # must not raise

@@ -139,6 +139,18 @@ class AuthManager:
         )
         return self._token
 
+    async def async_refresh_token(self) -> str:
+        """Mint a new session because the user asked for one.
+
+        The takeover cool-down is reset rather than respected: it exists to stop the
+        integration racing the mobile app on its own initiative, and this is not the
+        integration's initiative. Leaving the counter raised would also make the next few
+        polls pay for a debt the user has just settled by hand.
+        """
+        self._evictions = 0
+        self._last_eviction = None
+        return await self._async_relogin()
+
     async def _async_relogin(self) -> str:
         """Drop the current session and mint a new one.
 
