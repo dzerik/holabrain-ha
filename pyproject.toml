@@ -1,6 +1,6 @@
 [project]
 name = "holabrain-ha"
-version = "0.14.2"
+version = "0.14.3"
 description = "Home Assistant integration for HolaBrain smart-home appliances (cloud)."
 readme = "README.md"
 requires-python = ">=3.12"
