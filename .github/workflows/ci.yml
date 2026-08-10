@@ -74,7 +74,7 @@ jobs:
       # Pinned to a commit rather than to @master. A moving ref means whoever controls
       # that repository decides what runs here, with this workflow's token. Dependabot
       # bumps the pin weekly, so pinning does not mean going stale.
-      - uses: home-assistant/actions/hassfest@ab22029681aa532bfe7de5774a9972d67bfbd2c0 # master
+      - uses: home-assistant/actions/hassfest@a7c616ce81ccda50150bf1595786c71b1883fabb # master
 
   hacs:
     # HACS can only read publicly available information, so its validation cannot run
