@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Appliances on a non-direct `thingProtocol` (for example some `0xE2` water heaters) could
+  never load: the status query and command endpoints for that dialect were signed with the
+  wrong scheme and pointed at a path the cloud answers with 404. Setup now reaches those
+  appliances instead of retrying forever with "the cloud could not be reached for any
+  appliance".
+
 ## [0.15.0] - 2026-08-10
 
 ### Added

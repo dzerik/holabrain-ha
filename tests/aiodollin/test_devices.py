@@ -100,7 +100,7 @@ _HOME_INDEX_ALT_PROTOCOL = {
     "msg": "success!",
     "data": [
         {
-            "thingCode": "2427305057AA",
+            "thingCode": "200000000000002",
             "thingName": "Ewh1",
             "deviceType": "0xE2",
             "firmwareVersion": "1.1.9",
@@ -119,12 +119,12 @@ async def test_get_state_uses_oem_scheme_for_alt_protocol():
     )
     api = DeviceApi(auth)
     await api.async_list()
-    state = await api.async_get_state("2427305057AA")
+    state = await api.async_get_state("200000000000002")
 
     assert state.get("power") == "1"
     assert auth.tob_calls == []
     path, payload = auth.oem_calls[1]
-    assert path == "/v1/appliance/deviceCommands/query/2427305057AA"
+    assert path == "/v1/appliance/deviceCommands/query/200000000000002"
     assert payload == {"query": "1"}
 
 
@@ -133,11 +133,11 @@ async def test_send_instruction_uses_oem_scheme_for_alt_protocol():
     auth = FakeAuth(oem=[_HOME_INDEX_ALT_PROTOCOL, {"code": 0}])
     api = DeviceApi(auth)
     await api.async_list()
-    await api.async_send_instruction("2427305057AA", {"targetTemp": "60"})
+    await api.async_send_instruction("200000000000002", {"targetTemp": "60"})
 
     assert auth.tob_calls == []
     path, payload = auth.oem_calls[1]
-    assert path == "/v1/appliance/deviceCommands/requestNoReply/2427305057AA"
+    assert path == "/v1/appliance/deviceCommands/requestNoReply/200000000000002"
     assert payload == {"instruction": {"targetTemp": "60"}}
 
 
