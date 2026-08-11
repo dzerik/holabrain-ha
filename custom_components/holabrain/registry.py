@@ -186,9 +186,12 @@ class WaterHeaterConfig:
     min_temp: int = 35
     max_temp: int = 75
     operations: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
-    # Checked in order; first flag equal to "1" wins, else the last (default) mode.
-    operation_flags: tuple[tuple[str, str], ...] = ()
+    # (key, expected value, mode). Checked in order, first match wins, else the default.
+    operation_flags: tuple[tuple[str, str, str], ...] = ()
     default_operation: str = "normal"
+    # (key, value) at which the appliance itself refuses manual temperature entry — the
+    # 51020ED8 does this while in its "Smart" mode, which picks its own setpoint.
+    temp_locked_when: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -526,14 +529,29 @@ WATER_HEATER = CategorySpec(
         # so `targetTemp` is added ahead of the `temp` fallback rather than replacing it —
         # models that never report it keep falling back to `temp` exactly as before.
         current_temp_keys=("cur_temperature", "targetTemp", "temp"),
+        # The app's own "Model" screen is a 3-way exclusive picker — Smart / Single (tank) /
+        # Double (tank) — not independent eco/smart/high-temp flags. Confirmed on real
+        # hardware by cycling all three from the app and capturing the raw payload each
+        # time: `cloudSmart` and `bodyNum` move together, never both meaningfully set.
+        # `eco` was tried from Home Assistant and never came back in a single query
+        # response, and the app has no Eco control anywhere, so it is dropped rather than
+        # offered as a mode nothing here confirms this unit acts on. `highTemp` looks tied
+        # to the app's separate scheduled disinfect cycle, not this picker — also dropped
+        # until that is understood on its own terms. See docs/hcl.md for the raw evidence.
         operations={
-            "normal": {"eco": "0", "cloudSmart": "0", "highTemp": "0"},
-            "eco": {"eco": "1", "cloudSmart": "0", "highTemp": "0"},
-            "smart": {"eco": "0", "cloudSmart": "1", "highTemp": "0"},
-            "high_temp": {"eco": "0", "cloudSmart": "0", "highTemp": "1"},
+            "single": {"cloudSmart": "0", "bodyNum": "1"},
+            "double": {"cloudSmart": "0", "bodyNum": "2"},
+            "smart": {"cloudSmart": "1"},
         },
-        operation_flags=(("highTemp", "high_temp"), ("cloudSmart", "smart"), ("eco", "eco")),
-        default_operation="normal",
+        operation_flags=(
+            ("cloudSmart", "1", "smart"),
+            ("bodyNum", "1", "single"),
+            ("bodyNum", "2", "double"),
+        ),
+        default_operation="double",
+        # Smart mode picks its own setpoint (jumped straight to the appliance's max on the
+        # real unit) and the app itself disables manual entry while it is active.
+        temp_locked_when=("cloudSmart", "1"),
     ),
     sensors=(
         SensorSpec("heatStatus", "heat_status", device_class=SensorDeviceClass.ENUM,
@@ -546,12 +564,6 @@ WATER_HEATER = CategorySpec(
         # No fault-code table yet — only "0" (no fault) has been observed on real hardware,
         # unlike the dishwasher/oven tables built from a real fault. The binary problem flag
         # below needs no such table, so it ships now; add an ENUM sensor once codes turn up.
-        # Tank configuration ("单胆"/single vs "双胆"/double, from the vendor's own plugin
-        # bundle for this model), not an operating mode — it just happens to sit in the
-        # app's mode picker UI, which is why it can look like a fourth mode at a glance.
-        SensorSpec("bodyNum", "tank_configuration", device_class=SensorDeviceClass.ENUM,
-                   value_map={"1": "single", "2": "double"},
-                   entity_category=EntityCategory.DIAGNOSTIC),
     ),
     binary_sensors=(
         BinarySensorSpec("faultCode", "fault", device_class=BinarySensorDeviceClass.PROBLEM,

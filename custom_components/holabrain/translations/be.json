@@ -297,13 +297,6 @@
       },
       "water_year": {
         "name": "Вада за год"
-      },
-      "tank_configuration": {
-        "name": "Канфігурацыя бака",
-        "state": {
-          "single": "Адзінарны",
-          "double": "Падвойны"
-        }
       }
     },
     "binary_sensor": {

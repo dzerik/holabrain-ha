@@ -297,13 +297,6 @@
       },
       "water_year": {
         "name": "Water this year"
-      },
-      "tank_configuration": {
-        "name": "Tank configuration",
-        "state": {
-          "single": "Single",
-          "double": "Double"
-        }
       }
     },
     "binary_sensor": {

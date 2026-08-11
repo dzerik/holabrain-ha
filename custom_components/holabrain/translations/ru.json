@@ -297,13 +297,6 @@
       },
       "water_year": {
         "name": "Вода за год"
-      },
-      "tank_configuration": {
-        "name": "Конфигурация бака",
-        "state": {
-          "single": "Одинарный",
-          "double": "Двойной"
-        }
       }
     },
     "binary_sensor": {

@@ -45,7 +45,7 @@ has checked them against the appliance's own display.
 | Dishwasher | `0xE1` | any other | — | 🧪 modelled | Expected to work as above: this family answers the cloud capability dictionary, so the entity set adapts per model | — |
 | Lamp | `0x13` | `79010863`, others | — | 🧪 modelled | Expected: on/off, brightness, tunable white 2700–6500 K, scene effects | — |
 | Water heater | `0xE2` | `51020ED1`, `510214FN`, `510214HB`, `5102152H`, `51001938`, others | — | 🧪 modelled | Expected: target temperature, on/off, operation modes, heating status | — |
-| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature`/`temperature`/`heating`-`standby`-`keep_warm` confirmed against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). `remaining_time` and a `fault` problem sensor added from the same payload. **The mode model does not match the hardware** — see [below](#the-51020ed8-model-picker-a-known-gap) — and is not fixed in this PR. | reporter, own hardware |
+| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature`/`temperature`/`heating`-`standby`-`keep_warm` confirmed against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). `remaining_time` and a `fault` problem sensor added from the same payload. `operation_list` is `single`/`double`/`smart`, matching the app's real "Model" picker rather than the generic category's `eco`/`high_temp` flags — see [below](#the-51020ed8-model-picker) for the evidence. Manual temperature entry is correctly blocked while in Smart. Not yet confirmed: a mode change sent *from* Home Assistant actually reaching the appliance (only reads, for all three modes, and one write for the now-dropped `eco` were tested), and disinfect/`highTemp`, which stays out of `operation_list` entirely. | reporter, own hardware |
 | Air conditioner | `0xAC` | any | — | 🧪 modelled | Expected: HVAC modes, target temperature, fan speeds; features come from the packed capability descriptor in the device record | — |
 | Oven | `0xB1` | any | — | 🧪 modelled | Expected: programme composition (mode, temperature, duration, probe, pre-heat) submitted by the start button, plus status and fault sensors | — |
 | Washing machine | `0xDB` | `38127413`, `38127414`, others | — | 🧪 modelled | Expected: status and phase, programme, temperature, spin and drying selects, power/run, dosing warnings, delayed start | — |
@@ -72,42 +72,43 @@ Verified on a physical Weissgauff `760EY179`:
 - **Cloud push** — state changes arrive over the push channel within seconds, without polling
   and without taking the account session away from the mobile app ([accounts.md](accounts.md)).
 
-### The 51020ED8 model picker: a known gap
+### The 51020ED8 model picker
 
 The app's own "Model" screen for this unit is a 3-way exclusive picker — **Smart** /
 **Single Bile** / **Dual Bile** ("Bile" is almost certainly a mistranslation of the Chinese
-for tank/liner, 胆, which also literally means "gallbladder"). It is not the independent
-`eco`/`cloudSmart`/`highTemp` flags this PR's `operations` dict assumes, and not the static
-hardware descriptor `tank_configuration` is currently modelled as — `tank_configuration` is
-kept anyway because it is at minimum an accurate read of the current value.
+for tank/liner, 胆, which also literally means "gallbladder"). It is modelled as one
+mutually-exclusive `operation_mode` (`single`/`double`/`smart`), not the independent
+`eco`/`cloudSmart`/`highTemp` flags a first pass at this category assumed, and not a static
+hardware descriptor either — the earlier `tank_configuration` sensor was dropped as
+redundant once the mode itself carries that information.
 
-Raw `query` payloads for all three states, captured back to back on the same unit:
+Raw `query` payloads for all three states, captured back to back on the same unit, are what
+the mapping below was built from:
 
 | Model picker selection | `cloudSmart` | `bodyNum` | `temp` (setpoint) | Notes |
 |---|---|---|---|---|
-| Dual Bile | `0` | `2` | unchanged | baseline |
-| Single Bile | `0` | `1` | unchanged | only `bodyNum` moved |
-| Smart | `1` | `0` (new value, not `1`/`2`) | jumped to `75` (max) unprompted | app's manual temperature entry becomes unavailable while active |
+| Dual Bile | `0` | `2` | unchanged | → `operation_mode: double` |
+| Single Bile | `0` | `1` | unchanged | → `operation_mode: single` |
+| Smart | `1` | `0` (new value, not `1`/`2`) | jumped to `75` (max) unprompted | → `operation_mode: smart`; manual temperature entry correctly blocked |
 
-Two more things confirmed live rather than assumed:
+Two more things confirmed live rather than assumed, neither included in `operation_list`:
 
-- **`eco` is likely not supported by this unit at all.** `operation_mode: eco` sent from
-  Home Assistant showed the change optimistically, then reverted to `normal` on the next
-  real poll — the cloud's `query` response never echoes an `eco` key back, and the app has
-  no visible Eco control anywhere. The flag exists in the shared `0xE2` write payload, but
-  nothing here confirms this specific model acts on it.
+- **`eco` is likely not supported by this unit at all**, and is dropped rather than offered.
+  `operation_mode: eco` sent from Home Assistant showed the change optimistically, then
+  reverted on the next real poll — the cloud's `query` response never echoes an `eco` key
+  back, and the app has no visible Eco control anywhere.
 - **`highTemp` is probably the manual/live trigger for the same disinfect cycle** the app's
   separate "Disinfect" schedule toggle drives on a timer — the vendor's own code reuses the
   `modeList.disinfect.error1` string as the error shown when `highTemp` is already active.
   Not confirmed on hardware; disinfect itself looks driven by a separate scheduling API
-  (`v1/oemTimer/e2/*` in the vendor's plugin bundle), out of scope for a status/command fix.
+  (`v1/oemTimer/e2/*` in the vendor's plugin bundle), a genuinely separate feature rather
+  than a fourth `operation_mode`, and left for its own PR.
 
-None of this is implemented. A real fix means: modelling Smart/Single/Double as one
-mutually-exclusive selection instead of independent flags, making `target_temperature`
-read-only while Smart is active, extending `tank_configuration`'s value map to cover `0`,
-and dropping or capability-gating `eco` unless a unit that actually supports it turns up.
-That is a proper redesign, not a quick patch, and deserves its own PR built from a fresh
-diagnostics dump rather than bolted onto the fixes in this one.
+What is **not** yet confirmed: a mode change sent *from* Home Assistant actually reaching
+the appliance. Every row in the table above was read after changing the mode in the app,
+not after Home Assistant wrote it — the write path is built to match the same
+`cloudSmart`/`bodyNum` pairs, but that symmetry hasn't been checked against real hardware
+yet.
 
 ## What a category needs to be marked verified
 

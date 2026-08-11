@@ -12,7 +12,9 @@ from datetime import timedelta
 
 import pytest
 from homeassistant.components.climate import HVACMode
+from homeassistant.components.water_heater import WaterHeaterEntityFeature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
@@ -366,7 +368,7 @@ async def test_a_non_numeric_temperature_reading_is_dropped_not_raised(
 async def test_water_heater_reports_temperatures_and_the_default_mode(
     hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
 ) -> None:
-    """With every mode flag clear, the appliance is in its normal mode — not in no mode.
+    """With no mode flag matching, the appliance still reports a real mode — not no mode.
 
     ``current_operation = None`` renders as unknown and cannot be used in an automation.
     """
@@ -375,18 +377,18 @@ async def test_water_heater_reports_temperatures_and_the_default_mode(
     state = hass.states.get(entity_id_of("water_heater", f"{BOILER_CODE}_water_heater"))
     assert state.attributes["temperature"] == 60
     assert state.attributes["current_temperature"] == 48
-    assert state.state == "normal"
+    assert state.state == "double"
 
 
 @pytest.mark.parametrize(
     ("flags", "expected"),
     [
-        ({"eco": "1", "cloudSmart": "0", "highTemp": "0"}, "eco"),
-        ({"eco": "0", "cloudSmart": "1", "highTemp": "0"}, "smart"),
-        ({"eco": "0", "cloudSmart": "0", "highTemp": "1"}, "high_temp"),
-        # Several flags set at once: the appliance is physically in the strongest one.
-        ({"eco": "1", "cloudSmart": "1", "highTemp": "1"}, "high_temp"),
-        ({"eco": "1", "cloudSmart": "1", "highTemp": "0"}, "smart"),
+        ({"cloudSmart": "0", "bodyNum": "1"}, "single"),
+        ({"cloudSmart": "0", "bodyNum": "2"}, "double"),
+        ({"cloudSmart": "1", "bodyNum": "0"}, "smart"),
+        # cloudSmart wins even over a stale bodyNum from before Smart was selected — this is
+        # the exact combination a real unit reports for a moment after switching to Smart.
+        ({"cloudSmart": "1", "bodyNum": "1"}, "smart"),
     ],
 )
 async def test_operation_mode_is_resolved_by_flag_priority(
@@ -397,10 +399,10 @@ async def test_operation_mode_is_resolved_by_flag_priority(
     flags: dict,
     expected: str,
 ) -> None:
-    """Modes are independent flags that can be set together, so priority decides the answer.
+    """``cloudSmart`` and ``bodyNum`` are read together, so priority decides the answer.
 
-    Reading them in the wrong order reports "eco" for an appliance that is actually running
-    its high-temperature cycle — the exact opposite in energy terms.
+    Reading them in the wrong order reports "single" for an appliance that has actually
+    handed control to Smart mode, hiding that its setpoint is no longer the one you set.
     """
     assert await setup_integration()
     entity_id = entity_id_of("water_heater", f"{BOILER_CODE}_water_heater")
@@ -414,27 +416,56 @@ async def test_operation_mode_is_resolved_by_flag_priority(
 async def test_selecting_a_mode_clears_the_flags_of_the_other_modes(
     hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
 ) -> None:
-    """Setting a mode must write every flag, not just the one being enabled.
+    """Setting a mode must write every flag the mode needs, not just the changed one.
 
-    Leaving the previous flag set is what produces the multi-flag states above — the
-    appliance ends up in a combination the user never chose.
+    Leaving ``cloudSmart`` set from a prior Smart selection is what produces the
+    conflicting states above — the appliance ends up in a combination nobody chose.
     """
     assert await setup_integration()
     entity_id = entity_id_of("water_heater", f"{BOILER_CODE}_water_heater")
-    boiler_cloud.set_attr(BOILER_CODE, eco="1")
+    boiler_cloud.set_attr(BOILER_CODE, cloudSmart="1", bodyNum="0")
     await _poll(hass)
 
     await hass.services.async_call(
         "water_heater",
         "set_operation_mode",
-        {"entity_id": entity_id, "operation_mode": "high_temp"},
+        {"entity_id": entity_id, "operation_mode": "single"},
         blocking=True,
     )
 
     assert boiler_cloud.instructions[-1] == (
         BOILER_CODE,
-        {"eco": "0", "cloudSmart": "0", "highTemp": "1"},
+        {"cloudSmart": "0", "bodyNum": "1"},
     )
+
+
+async def test_smart_mode_locks_out_manual_temperature(
+    hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
+) -> None:
+    """The real appliance picks its own setpoint in Smart mode and refuses a manual one.
+
+    Confirmed on hardware: switching to Smart jumped the setpoint straight to the
+    appliance's max, unprompted, and the vendor app itself disables temperature entry
+    while it is active. Home Assistant must refuse it too rather than silently sending an
+    instruction the appliance will ignore.
+    """
+    assert await setup_integration()
+    entity_id = entity_id_of("water_heater", f"{BOILER_CODE}_water_heater")
+    boiler_cloud.set_attr(BOILER_CODE, cloudSmart="1", bodyNum="0")
+    await _poll(hass)
+
+    state = hass.states.get(entity_id)
+    assert not state.attributes["supported_features"] & WaterHeaterEntityFeature.TARGET_TEMPERATURE
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "water_heater",
+            "set_temperature",
+            {"entity_id": entity_id, "temperature": 50},
+            blocking=True,
+        )
+
+    assert boiler_cloud.instructions == []
 
 
 async def test_current_temperature_falls_back_to_the_setpoint_key(

@@ -297,13 +297,6 @@
       },
       "water_year": {
         "name": "Yillik suv"
-      },
-      "tank_configuration": {
-        "name": "Bak konfiguratsiyasi",
-        "state": {
-          "single": "Bitta",
-          "double": "Ikkita"
-        }
       }
     },
     "binary_sensor": {

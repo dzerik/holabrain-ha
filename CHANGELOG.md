@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Water heater: a `remaining_time` sensor (minutes to setpoint, while heating), a `fault`
-  problem sensor, and a diagnostic `tank_configuration` sensor (single/double tank).
+- Water heater: a `remaining_time` sensor (minutes to setpoint, while heating) and a `fault`
+  problem sensor.
 
 ### Fixed
 
@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actual temperature on models that report `targetTemp` but not `cur_temperature` — the
   cloud's field names are swapped from what they suggest (`temp` is the setpoint,
   `targetTemp` is the measured temperature).
+- Water heater `operation_list` no longer offers `normal`/`eco`/`high_temp`, none of which
+  a real 51020ED8 unit was confirmed to support (`eco` specifically was tried and never took
+  effect). It now offers `single`/`double`/`smart`, matching the appliance's own "Model"
+  picker, and Home Assistant correctly refuses a manual temperature while Smart is active —
+  the appliance picks its own setpoint in that mode and the vendor app disables entry too.
 
 ## [0.15.0] - 2026-08-10
 

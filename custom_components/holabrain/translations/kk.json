@@ -297,13 +297,6 @@
       },
       "water_year": {
         "name": "Жылдық су"
-      },
-      "tank_configuration": {
-        "name": "Бак конфигурациясы",
-        "state": {
-          "single": "Жалғыз",
-          "double": "Қос"
-        }
       }
     },
     "binary_sensor": {

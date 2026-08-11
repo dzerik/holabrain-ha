@@ -89,9 +89,8 @@ BOILER_STATE: dict[str, Any] = {
     "power": "1",
     "temp": "60",
     "cur_temperature": "48",
-    "eco": "0",
     "cloudSmart": "0",
-    "highTemp": "0",
+    "bodyNum": "2",
     "heatStatus": "1",
 }
 AC_STATE: dict[str, Any] = {
