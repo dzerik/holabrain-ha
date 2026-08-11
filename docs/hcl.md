@@ -45,7 +45,7 @@ has checked them against the appliance's own display.
 | Dishwasher | `0xE1` | any other | — | 🧪 modelled | Expected to work as above: this family answers the cloud capability dictionary, so the entity set adapts per model | — |
 | Lamp | `0x13` | `79010863`, others | — | 🧪 modelled | Expected: on/off, brightness, tunable white 2700–6500 K, scene effects | — |
 | Water heater | `0xE2` | `51020ED1`, `510214FN`, `510214HB`, `5102152H`, `51001938`, others | — | 🧪 modelled | Expected: target temperature, on/off, operation modes, heating status | — |
-| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature`/`temperature`/`heating`-`standby`-`keep_warm` confirmed against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). `remaining_time` and a `fault` problem sensor added from the same payload. `operation_list` is `single`/`double`/`smart`, matching the app's real "Model" picker rather than the generic category's `eco`/`high_temp` flags — see [below](#the-51020ed8-model-picker) for the evidence. Manual temperature entry is correctly blocked while in Smart. Not yet confirmed: a mode change sent *from* Home Assistant actually reaching the appliance (only reads, for all three modes, and one write for the now-dropped `eco` were tested), and disinfect/`highTemp`, which stays out of `operation_list` entirely. | reporter, own hardware |
+| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature`/`temperature`/`heating`-`standby`-`keep_warm` confirmed against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). `remaining_time` and a `fault` problem sensor added from the same payload. `operation_list` is `single`/`double`/`smart`, matching the app's real "Model" picker rather than the generic category's `eco`/`high_temp` flags, and a mode set **from Home Assistant has been confirmed to reach the appliance** — see [below](#the-51020ed8-model-picker) for the evidence. Manual temperature entry is correctly blocked while in Smart. Not yet confirmed: setting the *temperature* from Home Assistant reaching the appliance (only the mode was tried), the push channel, and disinfect/`highTemp`, which stays out of `operation_list` entirely. | reporter, own hardware |
 | Air conditioner | `0xAC` | any | — | 🧪 modelled | Expected: HVAC modes, target temperature, fan speeds; features come from the packed capability descriptor in the device record | — |
 | Oven | `0xB1` | any | — | 🧪 modelled | Expected: programme composition (mode, temperature, duration, probe, pre-heat) submitted by the start button, plus status and fault sensors | — |
 | Washing machine | `0xDB` | `38127413`, `38127414`, others | — | 🧪 modelled | Expected: status and phase, programme, temperature, spin and drying selects, power/run, dosing warnings, delayed start | — |
@@ -104,11 +104,12 @@ Two more things confirmed live rather than assumed, neither included in `operati
   (`v1/oemTimer/e2/*` in the vendor's plugin bundle), a genuinely separate feature rather
   than a fourth `operation_mode`, and left for its own PR.
 
-What is **not** yet confirmed: a mode change sent *from* Home Assistant actually reaching
-the appliance. Every row in the table above was read after changing the mode in the app,
-not after Home Assistant wrote it — the write path is built to match the same
-`cloudSmart`/`bodyNum` pairs, but that symmetry hasn't been checked against real hardware
-yet.
+Every row in the table above was read after changing the mode *in the app*. Since then, a
+mode set from **Home Assistant** (`water_heater.set_operation_mode`) has also been confirmed
+to reach and change the real appliance — so the write path is no longer just built to match
+the read evidence, it has been checked against hardware directly. Still open: setting the
+*temperature* from Home Assistant reaching the appliance was not separately tried (only the
+mode was), and neither was the push channel.
 
 ## What a category needs to be marked verified
 
