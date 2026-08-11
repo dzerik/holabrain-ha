@@ -22,8 +22,11 @@ class DeviceApi:
     """List devices, read status, and send control instructions.
 
     Appliances speak one of two command dialects, announced per device as ``thingProtocol``.
-    The payloads are identical; only the paths differ. The protocol of every listed device is
-    remembered here so callers can keep passing a plain thing code.
+    Protocol 1 ("direct") is signed and sent through the ToB scheme; every other protocol
+    uses a different pair of paths signed with the OEM scheme instead — this is not just a
+    different URL, the signature and headers differ too, confirmed against the vendor's own
+    per-model plugin bundle. The protocol of every listed device is remembered here so
+    callers can keep passing a plain thing code.
     """
 
     def __init__(self, auth: AuthManager) -> None:
@@ -40,19 +43,19 @@ class DeviceApi:
         self._protocols = {d.thing_code: d.thing_protocol for d in devices}
         return devices
 
-    def _path(self, thing_code: str, direct: str, alternate: str) -> str:
+    def _is_direct(self, thing_code: str) -> bool:
         # Unknown devices fall back to the direct dialect: it is the one verified against
         # hardware, and an unlisted device is the exception rather than the rule.
-        protocol = self._protocols.get(thing_code, THING_PROTOCOL_DIRECT)
-        template = direct if protocol == THING_PROTOCOL_DIRECT else alternate
-        return template.format(thing_code=thing_code)
+        return self._protocols.get(thing_code, THING_PROTOCOL_DIRECT) == THING_PROTOCOL_DIRECT
 
     async def async_get_state(self, thing_code: str) -> DeviceState:
         """Read the full current status of one device."""
-        data = await self._auth.tob(
-            self._path(thing_code, EP_APPLIANCE_QUERY, EP_APPLIANCE_QUERY_ALT),
-            {"query": "1"},
-        )
+        if self._is_direct(thing_code):
+            path = EP_APPLIANCE_QUERY.format(thing_code=thing_code)
+            data = await self._auth.tob(path, {"query": "1"})
+        else:
+            path = EP_APPLIANCE_QUERY_ALT.format(thing_code=thing_code)
+            data = await self._auth.oem(path, {"query": "1"})
         body = data.get("data")
         if not isinstance(body, dict):
             raise ApiError(f"query for {thing_code} returned no status body")
@@ -62,7 +65,9 @@ class DeviceApi:
         self, thing_code: str, instruction: dict[str, Any]
     ) -> None:
         """Send a control instruction. Raises on a non-success cloud code."""
-        await self._auth.tob(
-            self._path(thing_code, EP_DEVICE_COMMAND, EP_DEVICE_COMMAND_ALT),
-            {"instruction": instruction},
-        )
+        if self._is_direct(thing_code):
+            path = EP_DEVICE_COMMAND.format(thing_code=thing_code)
+            await self._auth.tob(path, {"instruction": instruction})
+        else:
+            path = EP_DEVICE_COMMAND_ALT.format(thing_code=thing_code)
+            await self._auth.oem(path, {"instruction": instruction})

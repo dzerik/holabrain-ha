@@ -92,6 +92,55 @@ async def test_send_instruction_wraps_payload_and_targets_thing():
     assert payload == {"instruction": {"runState": "2"}}
 
 
+# thingProtocol 2 (e.g. an 0xE2 water heater): the vendor's own per-model plugin bundle shows
+# these calls signed with the OEM scheme, not ToB, and without the `/midea/open/business`
+# prefix — verified against a real account (see PR description for the raw evidence).
+_HOME_INDEX_ALT_PROTOCOL = {
+    "code": 0,
+    "msg": "success!",
+    "data": [
+        {
+            "thingCode": "2427305057AA",
+            "thingName": "Ewh1",
+            "deviceType": "0xE2",
+            "firmwareVersion": "1.1.9",
+            "model": "51020ED8",
+            "online": 1,
+            "thingProtocol": 2,
+        }
+    ],
+}
+
+
+@pytest.mark.asyncio
+async def test_get_state_uses_oem_scheme_for_alt_protocol():
+    auth = FakeAuth(
+        oem=[_HOME_INDEX_ALT_PROTOCOL, {"code": 0, "data": {"power": "1"}}],
+    )
+    api = DeviceApi(auth)
+    await api.async_list()
+    state = await api.async_get_state("2427305057AA")
+
+    assert state.get("power") == "1"
+    assert auth.tob_calls == []
+    path, payload = auth.oem_calls[1]
+    assert path == "/v1/appliance/deviceCommands/query/2427305057AA"
+    assert payload == {"query": "1"}
+
+
+@pytest.mark.asyncio
+async def test_send_instruction_uses_oem_scheme_for_alt_protocol():
+    auth = FakeAuth(oem=[_HOME_INDEX_ALT_PROTOCOL, {"code": 0}])
+    api = DeviceApi(auth)
+    await api.async_list()
+    await api.async_send_instruction("2427305057AA", {"targetTemp": "60"})
+
+    assert auth.tob_calls == []
+    path, payload = auth.oem_calls[1]
+    assert path == "/v1/appliance/deviceCommands/requestNoReply/2427305057AA"
+    assert payload == {"instruction": {"targetTemp": "60"}}
+
+
 @pytest.mark.asyncio
 async def test_a_junk_numeric_field_does_not_take_the_whole_account_down():
     """One unparsable field must cost that field, not the device list.
