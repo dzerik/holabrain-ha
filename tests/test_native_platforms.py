@@ -456,6 +456,32 @@ async def test_current_temperature_falls_back_to_the_setpoint_key(
     assert hass.states.get(entity_id).attributes["current_temperature"] == 60
 
 
+async def test_current_temperature_prefers_target_temp_over_the_setpoint(
+    hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
+) -> None:
+    """``targetTemp`` is the measured tank temperature, not the setpoint — swapped names.
+
+    Confirmed on real hardware (Terma AquaPro WiFi, 51020ED8) by changing the setpoint and
+    observing which field moved: ``temp`` tracked the new value, ``targetTemp`` stayed at
+    the panel's current-temperature reading. A model with no ``cur_temperature`` key — as
+    this one has — must read ``targetTemp`` rather than falling all the way through to the
+    setpoint.
+    """
+    assert await setup_integration()
+    entity_id = entity_id_of("water_heater", f"{BOILER_CODE}_water_heater")
+
+    state = dict(boiler_cloud.states[BOILER_CODE])
+    state.pop("cur_temperature")
+    state["targetTemp"] = "58"
+    state["temp"] = "65"
+    boiler_cloud.states[BOILER_CODE] = state
+    await _poll(hass)
+
+    attrs = hass.states.get(entity_id).attributes
+    assert attrs["current_temperature"] == 58
+    assert attrs["temperature"] == 65
+
+
 async def test_an_empty_temperature_field_is_not_read_as_zero(
     hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
 ) -> None:

@@ -297,6 +297,13 @@
       },
       "water_year": {
         "name": "Жылдық су"
+      },
+      "tank_configuration": {
+        "name": "Бак конфигурациясы",
+        "state": {
+          "single": "Жалғыз",
+          "double": "Қос"
+        }
       }
     },
     "binary_sensor": {
@@ -547,7 +554,9 @@
     "child_lock": {
       "message": "Балалардан қорғау құлпы қосулы. Алдымен оны құрылғыда өшіріңіз."
     },
-    "token_refresh_failed": { "message": "Есептік жазба токенін жаңарту мүмкін болмады: {error}" }
+    "token_refresh_failed": {
+      "message": "Есептік жазба токенін жаңарту мүмкін болмады: {error}"
+    }
   },
   "issues": {
     "unsupported_category": {

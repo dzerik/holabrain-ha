@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Water heater: a `remaining_time` sensor (minutes to setpoint, while heating), a `fault`
+  problem sensor, and a diagnostic `tank_configuration` sensor (single/double tank).
+
 ### Fixed
 
 - Appliances on a non-direct `thingProtocol` (for example some `0xE2` water heaters) could
@@ -14,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong scheme and pointed at a path the cloud answers with 404. Setup now reaches those
   appliances instead of retrying forever with "the cloud could not be reached for any
   appliance".
+- Water heater `current_temperature` could read as the setpoint instead of the tank's
+  actual temperature on models that report `targetTemp` but not `cur_temperature` — the
+  cloud's field names are swapped from what they suggest (`temp` is the setpoint,
+  `targetTemp` is the measured temperature).
 
 ## [0.15.0] - 2026-08-10
 

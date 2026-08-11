@@ -297,6 +297,13 @@
       },
       "water_year": {
         "name": "Yillik suv"
+      },
+      "tank_configuration": {
+        "name": "Bak konfiguratsiyasi",
+        "state": {
+          "single": "Bitta",
+          "double": "Ikkita"
+        }
       }
     },
     "binary_sensor": {
@@ -547,7 +554,9 @@
     "child_lock": {
       "message": "Bolalardan himoya qulfi yoqilgan. Avval uni qurilmada o'chiring."
     },
-    "token_refresh_failed": { "message": "Hisob tokenini yangilab bo'lmadi: {error}" }
+    "token_refresh_failed": {
+      "message": "Hisob tokenini yangilab bo'lmadi: {error}"
+    }
   },
   "issues": {
     "unsupported_category": {

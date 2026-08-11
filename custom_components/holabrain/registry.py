@@ -499,7 +499,8 @@ LAMP = CategorySpec(
 
 # =========================================================================================
 # 0xE2 — Water heater → native `water_heater` platform.
-# Note: modelled from the cloud protocol; behaviour not yet verified on hardware.
+# Note: modelled from the cloud protocol; verified on one unit (Terma AquaPro WiFi,
+# model 51020ED8) — see docs/hcl.md. The rest of the family is still unconfirmed.
 # =========================================================================================
 
 # Power says whether the appliance is alive; heatStatus says what the element is doing.
@@ -517,6 +518,14 @@ WATER_HEATER = CategorySpec(
     category="water_heater",
     primary_platform=Platform.WATER_HEATER,
     water_heater=WaterHeaterConfig(
+        # `temp` is the setpoint and `targetTemp` is the measured tank temperature — the
+        # names are swapped from what they suggest. Confirmed by changing the setpoint on a
+        # real unit and observing which field moved: `temp` tracked the new value,
+        # `targetTemp` stayed at the (lower) reading the panel showed as current. The vendor
+        # app reads both through the same code path for the whole category, not per model,
+        # so `targetTemp` is added ahead of the `temp` fallback rather than replacing it —
+        # models that never report it keep falling back to `temp` exactly as before.
+        current_temp_keys=("cur_temperature", "targetTemp", "temp"),
         operations={
             "normal": {"eco": "0", "cloudSmart": "0", "highTemp": "0"},
             "eco": {"eco": "1", "cloudSmart": "0", "highTemp": "0"},
@@ -530,6 +539,24 @@ WATER_HEATER = CategorySpec(
         SensorSpec("heatStatus", "heat_status", device_class=SensorDeviceClass.ENUM,
                    value_map={"0": "standby", "1": "heating", "2": "keep_warm"},
                    gates=Gates(meaningful_when=~StateIs("power_off"))),
+        # Minutes until the setpoint is reached; only meaningful while actively heating —
+        # the vendor app itself only shows it in that state.
+        SensorSpec("remainTime", "remaining_time", device_class=SensorDeviceClass.DURATION,
+                   unit=UnitOfTime.MINUTES, gates=Gates(meaningful_when=StateIs("heating"))),
+        # No fault-code table yet — only "0" (no fault) has been observed on real hardware,
+        # unlike the dishwasher/oven tables built from a real fault. The binary problem flag
+        # below needs no such table, so it ships now; add an ENUM sensor once codes turn up.
+        # Tank configuration ("单胆"/single vs "双胆"/double, from the vendor's own plugin
+        # bundle for this model), not an operating mode — it just happens to sit in the
+        # app's mode picker UI, which is why it can look like a fourth mode at a glance.
+        SensorSpec("bodyNum", "tank_configuration", device_class=SensorDeviceClass.ENUM,
+                   value_map={"1": "single", "2": "double"},
+                   entity_category=EntityCategory.DIAGNOSTIC),
+    ),
+    binary_sensors=(
+        BinarySensorSpec("faultCode", "fault", device_class=BinarySensorDeviceClass.PROBLEM,
+                         on_values=("0",), invert=True, uid="faultStatus",
+                         entity_category=EntityCategory.DIAGNOSTIC),
     ),
 )
 

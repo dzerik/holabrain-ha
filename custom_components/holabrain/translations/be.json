@@ -297,6 +297,13 @@
       },
       "water_year": {
         "name": "Вада за год"
+      },
+      "tank_configuration": {
+        "name": "Канфігурацыя бака",
+        "state": {
+          "single": "Адзінарны",
+          "double": "Падвойны"
+        }
       }
     },
     "binary_sensor": {
@@ -547,7 +554,9 @@
     "child_lock": {
       "message": "Уключана блакіроўка ад дзяцей. Спачатку адключыце яе на прыборы."
     },
-    "token_refresh_failed": { "message": "Не ўдалося абнавіць токен акаўнта: {error}" }
+    "token_refresh_failed": {
+      "message": "Не ўдалося абнавіць токен акаўнта: {error}"
+    }
   },
   "issues": {
     "unsupported_category": {
