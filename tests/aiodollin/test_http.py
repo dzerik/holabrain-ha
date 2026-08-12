@@ -129,6 +129,35 @@ async def test_non_json_response_is_api_error():
     await client.aclose()
 
 
+@pytest.mark.parametrize("status", [404, 500])
+@pytest.mark.asyncio
+async def test_http_error_without_a_business_code_is_api_error(status):
+    """A code-less error body must never read as an empty success.
+
+    The cloud does not always answer an unknown path or an internal failure with a business
+    code. Treating that as success degrades a device listing to an empty inventory — which
+    the coordinator then acts on by forgetting every device — and reports writes that never
+    left the gateway as done.
+    """
+    client = _client(lambda r: httpx.Response(status, json={"msg": "nope"}))
+    transport = HttpTransport(client, region="eu")
+    with pytest.raises(ApiError) as excinfo:
+        await transport.oem_request("/v1/x")
+    assert "/v1/x" in str(excinfo.value)
+    assert str(status) in str(excinfo.value)
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_2xx_body_without_a_code_is_still_accepted():
+    """Not every successful endpoint echoes a code, so 200 without one stays a success."""
+    client = _client(lambda r: httpx.Response(200, json={"data": {"ok": 1}}))
+    transport = HttpTransport(client, region="eu")
+    data = await transport.oem_request("/v1/x")
+    assert data["data"]["ok"] == 1
+    await client.aclose()
+
+
 @pytest.mark.asyncio
 async def test_transport_failure_is_network_error():
     def handler(request):

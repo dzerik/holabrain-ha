@@ -48,7 +48,11 @@ class NetworkError(DollinError):
 
 
 class ApiError(DollinError):
-    """The cloud accepted the request but returned a non-success business code."""
+    """The cloud rejected the request: a non-success business code, or an HTTP error.
+
+    ``code`` is ``None`` when the failure never reached the business layer — an HTTP 404 or
+    5xx whose body carries no code of its own.
+    """
 
     def __init__(self, message: str, *, code: int | None = None) -> None:
         super().__init__(message)

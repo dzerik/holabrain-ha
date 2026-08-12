@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Water heater models that report neither `bodyNum` nor `cloudSmart` now show their
   operation mode as unknown instead of claiming `double` — the integration has no evidence
   of those units' tank count.
+- A cloud HTTP error whose body carried no business code (a 404 on an unknown path, a 5xx
+  from the gateway) was read as a successful, empty response. That could empty the device
+  inventory — and with it remove every device — turn an outage into a "re-enter your
+  password" prompt, and report writes that never reached the appliance as done. Such
+  responses now fail with the path and the status code.
 
 ## [0.15.0] - 2026-08-10
 

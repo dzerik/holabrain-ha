@@ -374,7 +374,10 @@ class FakeCloud:
             return self._dispatch(self.RENAME, path, payload, self._rename, request)
         if path.endswith("/appliance/binder/remove"):
             return self._dispatch(self.UNBIND, path, payload, self._unbind, request)
-        return httpx.Response(404, json={"code": 404, "msg": f"no route for {path}"})
+        # No business code: that is what a real gateway sends for a path it does not know,
+        # and inventing one here would let a wrong URL fail loudly in tests while failing
+        # silently in production.
+        return httpx.Response(404, json={"msg": f"no route for {path}"})
 
     def _dispatch(
         self,

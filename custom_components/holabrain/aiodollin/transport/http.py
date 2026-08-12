@@ -164,6 +164,14 @@ class HttpTransport:
             raise ApiError(f"{path} returned unexpected payload type {type(data).__name__}")
 
         code = data.get("code")
+        if code is None and not response.is_success:
+            # Some gateway errors answer with a JSON body that carries no business code at
+            # all. Without this check they would fall into the permissive branch below and
+            # reach callers as a *successful* response with no data — a 404 on a wrong path
+            # becomes an empty device inventory (and every device is forgotten), and a write
+            # that never happened is reported as done. The status and the path are in the
+            # message because that pair is the only thing that identifies such a failure.
+            raise ApiError(f"{path} returned HTTP {response.status_code} without a code")
         if code in (0, None):
             return data
         message = str(data.get("msg") or data.get("message") or "").strip() or f"code {code}"
