@@ -1,8 +1,9 @@
 """Water heater platform — native mapping for boiler categories.
 
-Operation modes (normal / eco / smart / high-temp) are flag combinations on the cloud, so
-setting a mode writes several keys at once and the current mode is read back by scanning
-the flags in priority order.
+Operation modes are flag combinations on the cloud — for the 51020ED8, one status key
+(``bodyNum``) can carry the mode itself rather than always being a boolean "1" — so setting
+a mode writes several keys at once and the current mode is read back by scanning
+``(key, expected value, mode)`` triples in priority order.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from homeassistant.components.water_heater import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import HolabrainConfigEntry
@@ -77,15 +79,31 @@ class HolabrainWaterHeater(HolabrainEntity, WaterHeaterEntity):
 
     @property
     def current_operation(self) -> str | None:
-        for flag, mode in self._cfg.operation_flags:
-            if str(self._value(flag)) == "1":
+        for key, expected, mode in self._cfg.operation_flags:
+            if str(self._value(key)) == expected:
                 return mode
         return self._cfg.default_operation
+
+    @property
+    def supported_features(self) -> WaterHeaterEntityFeature:
+        features = self._attr_supported_features
+        if self._cfg.temp_locked_when is not None:
+            key, locked_value = self._cfg.temp_locked_when
+            if str(self._value(key)) == locked_value:
+                features &= ~WaterHeaterEntityFeature.TARGET_TEMPERATURE
+        return features
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
+        if self._cfg.temp_locked_when is not None:
+            key, locked_value = self._cfg.temp_locked_when
+            if str(self._value(key)) == locked_value:
+                raise ServiceValidationError(
+                    "The appliance is picking its own setpoint in this mode and refuses a "
+                    "manual one — switch out of it first."
+                )
         await self._async_send({self._cfg.target_temp_key: str(int(temperature))})
 
     async def async_set_operation_mode(self, operation_mode: str) -> None:

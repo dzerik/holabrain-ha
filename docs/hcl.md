@@ -45,6 +45,7 @@ has checked them against the appliance's own display.
 | Dishwasher | `0xE1` | any other | — | 🧪 modelled | Expected to work as above: this family answers the cloud capability dictionary, so the entity set adapts per model | — |
 | Lamp | `0x13` | `79010863`, others | — | 🧪 modelled | Expected: on/off, brightness, tunable white 2700–6500 K, scene effects | — |
 | Water heater | `0xE2` | `51020ED1`, `510214FN`, `510214HB`, `5102152H`, `51001938`, others | — | 🧪 modelled | Expected: target temperature, on/off, operation modes, heating status | — |
+| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature`/`temperature`/`heating`-`standby`-`keep_warm` confirmed against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). `remaining_time` and a `fault` problem sensor added from the same payload. `operation_list` is `single`/`double`/`smart`, matching the app's real "Model" picker rather than the generic category's `eco`/`high_temp` flags, and a mode set **from Home Assistant has been confirmed to reach the appliance** — see [below](#the-51020ed8-model-picker) for the evidence. Manual temperature entry is correctly blocked while in Smart. Not yet confirmed: setting the *temperature* from Home Assistant reaching the appliance (only the mode was tried), the push channel, and disinfect/`highTemp`, which stays out of `operation_list` entirely. | reporter, own hardware |
 | Air conditioner | `0xAC` | any | — | 🧪 modelled | Expected: HVAC modes, target temperature, fan speeds; features come from the packed capability descriptor in the device record | — |
 | Oven | `0xB1` | any | — | 🧪 modelled | Expected: programme composition (mode, temperature, duration, probe, pre-heat) submitted by the start button, plus status and fault sensors | — |
 | Washing machine | `0xDB` | `38127413`, `38127414`, others | — | 🧪 modelled | Expected: status and phase, programme, temperature, spin and drying selects, power/run, dosing warnings, delayed start | — |
@@ -70,6 +71,45 @@ Verified on a physical Weissgauff `760EY179`:
   together by the start button, and the appliance runs the cycle that was selected.
 - **Cloud push** — state changes arrive over the push channel within seconds, without polling
   and without taking the account session away from the mobile app ([accounts.md](accounts.md)).
+
+### The 51020ED8 model picker
+
+The app's own "Model" screen for this unit is a 3-way exclusive picker — **Smart** /
+**Single Bile** / **Dual Bile** ("Bile" is almost certainly a mistranslation of the Chinese
+for tank/liner, 胆, which also literally means "gallbladder"). It is modelled as one
+mutually-exclusive `operation_mode` (`single`/`double`/`smart`), not the independent
+`eco`/`cloudSmart`/`highTemp` flags a first pass at this category assumed, and not a static
+hardware descriptor either — the earlier `tank_configuration` sensor was dropped as
+redundant once the mode itself carries that information.
+
+Raw `query` payloads for all three states, captured back to back on the same unit, are what
+the mapping below was built from:
+
+| Model picker selection | `cloudSmart` | `bodyNum` | `temp` (setpoint) | Notes |
+|---|---|---|---|---|
+| Dual Bile | `0` | `2` | unchanged | → `operation_mode: double` |
+| Single Bile | `0` | `1` | unchanged | → `operation_mode: single` |
+| Smart | `1` | `0` (new value, not `1`/`2`) | jumped to `75` (max) unprompted | → `operation_mode: smart`; manual temperature entry correctly blocked |
+
+Two more things confirmed live rather than assumed, neither included in `operation_list`:
+
+- **`eco` is likely not supported by this unit at all**, and is dropped rather than offered.
+  `operation_mode: eco` sent from Home Assistant showed the change optimistically, then
+  reverted on the next real poll — the cloud's `query` response never echoes an `eco` key
+  back, and the app has no visible Eco control anywhere.
+- **`highTemp` is probably the manual/live trigger for the same disinfect cycle** the app's
+  separate "Disinfect" schedule toggle drives on a timer — the vendor's own code reuses the
+  `modeList.disinfect.error1` string as the error shown when `highTemp` is already active.
+  Not confirmed on hardware; disinfect itself looks driven by a separate scheduling API
+  (`v1/oemTimer/e2/*` in the vendor's plugin bundle), a genuinely separate feature rather
+  than a fourth `operation_mode`, and left for its own PR.
+
+Every row in the table above was read after changing the mode *in the app*. Since then, a
+mode set from **Home Assistant** (`water_heater.set_operation_mode`) has also been confirmed
+to reach and change the real appliance — so the write path is no longer just built to match
+the read evidence, it has been checked against hardware directly. Still open: setting the
+*temperature* from Home Assistant reaching the appliance was not separately tried (only the
+mode was), and neither was the push channel.
 
 ## What a category needs to be marked verified
 

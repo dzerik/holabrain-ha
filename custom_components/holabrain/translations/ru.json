@@ -547,7 +547,9 @@
     "child_lock": {
       "message": "Включена блокировка от детей. Сначала отключите её на приборе."
     },
-    "token_refresh_failed": { "message": "Не удалось обновить токен аккаунта: {error}" }
+    "token_refresh_failed": {
+      "message": "Не удалось обновить токен аккаунта: {error}"
+    }
   },
   "issues": {
     "unsupported_category": {

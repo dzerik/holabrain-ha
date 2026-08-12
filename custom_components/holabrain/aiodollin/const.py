@@ -39,15 +39,14 @@ EP_DEVICE_COMMAND: Final = "/midea/open/business/v1/device/command/{thing_code}"
 EP_APPLIANCE_QUERY: Final = "/midea/open/business/v1/appliance/query/{thing_code}"
 
 # Appliances report which command dialect they speak in ``thingProtocol``. Protocol 1 uses
-# the endpoints above; the others exchange the same JSON instructions on a second pair of
-# paths. Routing by the reported value keeps one client working across appliance families.
+# the ToB-signed endpoints above; other protocols use a second pair of paths signed with the
+# OEM scheme instead (`AuthManager.oem`, not `.tob`) — confirmed against the vendor's own
+# per-model plugin bundle (`EP_PLUGIN_LATEST`) for an 0xE2 water heater on thingProtocol 2:
+# the bundle's `apiRequest` calls carry a `1==thingProtocol` flag that switches the signer,
+# not just the path. Routing by the reported value keeps one client working across families.
 THING_PROTOCOL_DIRECT: Final = 1
-EP_DEVICE_COMMAND_ALT: Final = (
-    "/midea/open/business/v1/appliance/deviceCommands/requestNoReply/{thing_code}"
-)
-EP_APPLIANCE_QUERY_ALT: Final = (
-    "/midea/open/business/v1/appliance/deviceCommands/query/{thing_code}"
-)
+EP_DEVICE_COMMAND_ALT: Final = "/v1/appliance/deviceCommands/requestNoReply/{thing_code}"
+EP_APPLIANCE_QUERY_ALT: Final = "/v1/appliance/deviceCommands/query/{thing_code}"
 
 # ---- Binding (adding / removing appliances on the account) -----------------------------
 # Business endpoints use the ToB signature; the `/v1/*` ones use the OEM signature.

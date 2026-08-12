@@ -186,9 +186,12 @@ class WaterHeaterConfig:
     min_temp: int = 35
     max_temp: int = 75
     operations: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
-    # Checked in order; first flag equal to "1" wins, else the last (default) mode.
-    operation_flags: tuple[tuple[str, str], ...] = ()
+    # (key, expected value, mode). Checked in order, first match wins, else the default.
+    operation_flags: tuple[tuple[str, str, str], ...] = ()
     default_operation: str = "normal"
+    # (key, value) at which the appliance itself refuses manual temperature entry — the
+    # 51020ED8 does this while in its "Smart" mode, which picks its own setpoint.
+    temp_locked_when: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -499,7 +502,8 @@ LAMP = CategorySpec(
 
 # =========================================================================================
 # 0xE2 — Water heater → native `water_heater` platform.
-# Note: modelled from the cloud protocol; behaviour not yet verified on hardware.
+# Note: modelled from the cloud protocol; verified on one unit (Terma AquaPro WiFi,
+# model 51020ED8) — see docs/hcl.md. The rest of the family is still unconfirmed.
 # =========================================================================================
 
 # Power says whether the appliance is alive; heatStatus says what the element is doing.
@@ -517,19 +521,54 @@ WATER_HEATER = CategorySpec(
     category="water_heater",
     primary_platform=Platform.WATER_HEATER,
     water_heater=WaterHeaterConfig(
+        # `temp` is the setpoint and `targetTemp` is the measured tank temperature — the
+        # names are swapped from what they suggest. Confirmed by changing the setpoint on a
+        # real unit and observing which field moved: `temp` tracked the new value,
+        # `targetTemp` stayed at the (lower) reading the panel showed as current. The vendor
+        # app reads both through the same code path for the whole category, not per model,
+        # so `targetTemp` is added ahead of the `temp` fallback rather than replacing it —
+        # models that never report it keep falling back to `temp` exactly as before.
+        current_temp_keys=("cur_temperature", "targetTemp", "temp"),
+        # The app's own "Model" screen is a 3-way exclusive picker — Smart / Single (tank) /
+        # Double (tank) — not independent eco/smart/high-temp flags. Confirmed on real
+        # hardware by cycling all three from the app and capturing the raw payload each
+        # time: `cloudSmart` and `bodyNum` move together, never both meaningfully set.
+        # `eco` was tried from Home Assistant and never came back in a single query
+        # response, and the app has no Eco control anywhere, so it is dropped rather than
+        # offered as a mode nothing here confirms this unit acts on. `highTemp` looks tied
+        # to the app's separate scheduled disinfect cycle, not this picker — also dropped
+        # until that is understood on its own terms. See docs/hcl.md for the raw evidence.
         operations={
-            "normal": {"eco": "0", "cloudSmart": "0", "highTemp": "0"},
-            "eco": {"eco": "1", "cloudSmart": "0", "highTemp": "0"},
-            "smart": {"eco": "0", "cloudSmart": "1", "highTemp": "0"},
-            "high_temp": {"eco": "0", "cloudSmart": "0", "highTemp": "1"},
+            "single": {"cloudSmart": "0", "bodyNum": "1"},
+            "double": {"cloudSmart": "0", "bodyNum": "2"},
+            "smart": {"cloudSmart": "1"},
         },
-        operation_flags=(("highTemp", "high_temp"), ("cloudSmart", "smart"), ("eco", "eco")),
-        default_operation="normal",
+        operation_flags=(
+            ("cloudSmart", "1", "smart"),
+            ("bodyNum", "1", "single"),
+            ("bodyNum", "2", "double"),
+        ),
+        default_operation="double",
+        # Smart mode picks its own setpoint (jumped straight to the appliance's max on the
+        # real unit) and the app itself disables manual entry while it is active.
+        temp_locked_when=("cloudSmart", "1"),
     ),
     sensors=(
         SensorSpec("heatStatus", "heat_status", device_class=SensorDeviceClass.ENUM,
                    value_map={"0": "standby", "1": "heating", "2": "keep_warm"},
                    gates=Gates(meaningful_when=~StateIs("power_off"))),
+        # Minutes until the setpoint is reached; only meaningful while actively heating —
+        # the vendor app itself only shows it in that state.
+        SensorSpec("remainTime", "remaining_time", device_class=SensorDeviceClass.DURATION,
+                   unit=UnitOfTime.MINUTES, gates=Gates(meaningful_when=StateIs("heating"))),
+        # No fault-code table yet — only "0" (no fault) has been observed on real hardware,
+        # unlike the dishwasher/oven tables built from a real fault. The binary problem flag
+        # below needs no such table, so it ships now; add an ENUM sensor once codes turn up.
+    ),
+    binary_sensors=(
+        BinarySensorSpec("faultCode", "fault", device_class=BinarySensorDeviceClass.PROBLEM,
+                         on_values=("0",), invert=True, uid="faultStatus",
+                         entity_category=EntityCategory.DIAGNOSTIC),
     ),
 )
 

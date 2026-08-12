@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Water heater: a `remaining_time` sensor (minutes to setpoint, while heating) and a `fault`
+  problem sensor.
+
+### Fixed
+
+- Appliances on a non-direct `thingProtocol` (for example some `0xE2` water heaters) could
+  never load: the status query and command endpoints for that dialect were signed with the
+  wrong scheme and pointed at a path the cloud answers with 404. Setup now reaches those
+  appliances instead of retrying forever with "the cloud could not be reached for any
+  appliance".
+- Water heater `current_temperature` could read as the setpoint instead of the tank's
+  actual temperature on models that report `targetTemp` but not `cur_temperature` — the
+  cloud's field names are swapped from what they suggest (`temp` is the setpoint,
+  `targetTemp` is the measured temperature).
+- Water heater `operation_list` no longer offers `normal`/`eco`/`high_temp`, none of which
+  a real 51020ED8 unit was confirmed to support (`eco` specifically was tried and never took
+  effect). It now offers `single`/`double`/`smart`, matching the appliance's own "Model"
+  picker, and Home Assistant correctly refuses a manual temperature while Smart is active —
+  the appliance picks its own setpoint in that mode and the vendor app disables entry too.
+
 ## [0.15.0] - 2026-08-10
 
 ### Added
