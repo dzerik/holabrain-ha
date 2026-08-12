@@ -20,6 +20,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import HolabrainConfigEntry
+from .const import DOMAIN
 from .entity import HolabrainEntity
 from .helpers import async_add_with_discovery, iter_native
 from .registry import WaterHeaterConfig
@@ -84,25 +85,19 @@ class HolabrainWaterHeater(HolabrainEntity, WaterHeaterEntity):
                 return mode
         return self._cfg.default_operation
 
-    @property
-    def supported_features(self) -> WaterHeaterEntityFeature:
-        features = self._attr_supported_features
-        if self._cfg.temp_locked_when is not None:
-            key, locked_value = self._cfg.temp_locked_when
-            if str(self._value(key)) == locked_value:
-                features &= ~WaterHeaterEntityFeature.TARGET_TEMPERATURE
-        return features
-
     async def async_set_temperature(self, **kwargs: Any) -> None:
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
+        # Refuse, never withdraw TARGET_TEMPERATURE: Home Assistant drops an entity that
+        # lacks a service's required feature from an area/device/label target without a
+        # word, so the automation would be told it succeeded while nothing was sent.
         if self._cfg.temp_locked_when is not None:
             key, locked_value = self._cfg.temp_locked_when
             if str(self._value(key)) == locked_value:
                 raise ServiceValidationError(
-                    "The appliance is picking its own setpoint in this mode and refuses a "
-                    "manual one — switch out of it first."
+                    translation_domain=DOMAIN,
+                    translation_key="smart_mode_locked",
                 )
         await self._async_send({self._cfg.target_temp_key: str(int(temperature))})
 

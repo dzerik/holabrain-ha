@@ -547,9 +547,10 @@
     "child_lock": {
       "message": "Балалардан қорғау құлпы қосулы. Алдымен оны құрылғыда өшіріңіз."
     },
-    "token_refresh_failed": {
-      "message": "Есептік жазба токенін жаңарту мүмкін болмады: {error}"
-    }
+    "smart_mode_locked": {
+      "message": "Smart режимінде құрылғы температураны өзі таңдайды. Алдымен режимді ауыстырыңыз."
+    },
+    "token_refresh_failed": { "message": "Есептік жазба токенін жаңарту мүмкін болмады: {error}" }
   },
   "issues": {
     "unsupported_category": {

@@ -547,9 +547,10 @@
     "child_lock": {
       "message": "Bolalardan himoya qulfi yoqilgan. Avval uni qurilmada o'chiring."
     },
-    "token_refresh_failed": {
-      "message": "Hisob tokenini yangilab bo'lmadi: {error}"
-    }
+    "smart_mode_locked": {
+      "message": "Smart rejimida qurilma haroratni o'zi tanlaydi. Avval rejimni almashtiring."
+    },
+    "token_refresh_failed": { "message": "Hisob tokenini yangilab bo'lmadi: {error}" }
   },
   "issues": {
     "unsupported_category": {

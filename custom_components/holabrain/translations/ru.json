@@ -547,9 +547,10 @@
     "child_lock": {
       "message": "Включена блокировка от детей. Сначала отключите её на приборе."
     },
-    "token_refresh_failed": {
-      "message": "Не удалось обновить токен аккаунта: {error}"
-    }
+    "smart_mode_locked": {
+      "message": "В режиме Smart прибор сам выбирает температуру. Сначала переключите режим."
+    },
+    "token_refresh_failed": { "message": "Не удалось обновить токен аккаунта: {error}" }
   },
   "issues": {
     "unsupported_category": {

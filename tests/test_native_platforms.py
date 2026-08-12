@@ -15,10 +15,11 @@ from homeassistant.components.climate import HVACMode
 from homeassistant.components.water_heater import WaterHeaterEntityFeature
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.holabrain.const import DEFAULT_SCAN_INTERVAL
+from custom_components.holabrain.const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from tests.conftest import AC_CODE, BOILER_CODE, LAMP_CODE, FakeCloud
 
 
@@ -439,8 +440,9 @@ async def test_selecting_a_mode_clears_the_flags_of_the_other_modes(
     )
 
 
+@pytest.mark.parametrize("target_by", ["entity_id", "device_id"])
 async def test_smart_mode_locks_out_manual_temperature(
-    hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
+    hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of, target_by: str
 ) -> None:
     """The real appliance picks its own setpoint in Smart mode and refuses a manual one.
 
@@ -448,6 +450,11 @@ async def test_smart_mode_locks_out_manual_temperature(
     appliance's max, unprompted, and the vendor app itself disables temperature entry
     while it is active. Home Assistant must refuse it too rather than silently sending an
     instruction the appliance will ignore.
+
+    Both targeting forms are exercised because the refusal must come from our own guard.
+    Withdrawing ``TARGET_TEMPERATURE`` instead would raise for an explicit ``entity_id``
+    and quietly skip the entity for a device target — the automation would be told it
+    succeeded while nothing was sent.
     """
     assert await setup_integration()
     entity_id = entity_id_of("water_heater", f"{BOILER_CODE}_water_heater")
@@ -455,16 +462,23 @@ async def test_smart_mode_locks_out_manual_temperature(
     await _poll(hass)
 
     state = hass.states.get(entity_id)
-    assert not state.attributes["supported_features"] & WaterHeaterEntityFeature.TARGET_TEMPERATURE
+    assert state.attributes["supported_features"] & WaterHeaterEntityFeature.TARGET_TEMPERATURE
 
-    with pytest.raises(ServiceValidationError):
+    if target_by == "entity_id":
+        target = {"entity_id": entity_id}
+    else:
+        device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, BOILER_CODE)})
+        target = {"device_id": device.id}
+
+    with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(
             "water_heater",
             "set_temperature",
-            {"entity_id": entity_id, "temperature": 50},
+            {**target, "temperature": 50},
             blocking=True,
         )
 
+    assert err.value.translation_key == "smart_mode_locked"
     assert boiler_cloud.instructions == []
 
 
