@@ -137,17 +137,32 @@ the device record.
 
 ## Water heater — `water_heater` 🧪
 
-A single `water_heater` entity, plus one sensor.
+A single `water_heater` entity, plus three sensors. One unit (Terma AquaPro WiFi, `51020ED8`)
+has been reported working — ❓ in [hcl.md](hcl.md) — and everything below is modelled from
+that one unit's payloads; the rest of the family is unconfirmed.
 
 | Feature | Detail |
 |---|---|
 | Target temperature | 35–75 °C |
-| Operation modes | `normal`, `eco`, `smart`, `high_temp` |
+| Operation modes | `single`, `double`, `smart` |
 | On / off | Supported |
-| Heating status | `sensor` (enum) `_heating_status`: `standby`, `heating`, `keep_warm` |
 
-Operation modes are flag combinations rather than one field, and are written together — so
-selecting `eco` also clears the smart and high-temperature flags in the same instruction.
+| Entity | Platform | Entity id suffix | Notes |
+|---|---|---|---|
+| Heating status | `sensor` (enum) | `_heating_status` | `standby`, `heating`, `keep_warm`; blank while the appliance is off |
+| Time remaining | `sensor` | `_time_remaining` | Minutes to the setpoint, `device_class: duration`; blank unless the appliance is heating, which is the only state the vendor app shows it in |
+| Fault | `binary_sensor` | `_fault` | `device_class: problem`, `on` for any code other than `0`; diagnostic |
+
+The operation modes are the three positions of the appliance's own "Model" picker, and they
+are mutually exclusive rather than flags that combine: `single` and `double` say which of a
+two-tank unit's tanks it heats, `smart` hands the setpoint to the appliance. A model that
+reports neither of the underlying keys shows its mode as `unknown` rather than being credited
+with a tank count nothing states.
+
+**Setting a temperature while in `smart` is refused** with an error, not silently dropped:
+the appliance picks its own setpoint in that mode (it went straight to 75 °C on the unit
+above) and the vendor app disables manual entry there too. Leave `smart` for another mode
+first if an automation needs to set a temperature.
 
 ---
 

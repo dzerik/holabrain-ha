@@ -18,7 +18,7 @@ device page. See [diagnostics.md](diagnostics.md) for how to read them off your 
 |---|---|
 | ✅ **verified** | The maintainer or a user ran this exact appliance through the integration and reported what worked. Readings match the appliance panel, commands take effect on the hardware. |
 | 🧪 **modelled** | Built from the cloud protocol and observed cloud responses for the category, structurally complete, but never confirmed against a physical unit. |
-| ❓ **reported** | A user reported it working, with less than full coverage — for example status reads correctly but no one has tried every control. The issue linked in the row says what was actually checked. |
+| ❓ **reported** | A user reported it working, with less than full coverage — for example status reads correctly but no one has tried every control. The row says what was actually checked, and links the issue or pull request it came from. |
 
 **Why 🧪 may not work on your unit.** The entity set for a modelled category is a plausible
 reading of the protocol, and plausible is not the same as correct. The failure modes seen in
@@ -44,8 +44,8 @@ has checked them against the appliance's own display.
 | Dishwasher | `0xE1` | `760EY179` | Weissgauff | ✅ verified | Full monitoring, power, start/pause, consumables, staged programme start, cloud push status — see below | maintainer, own hardware |
 | Dishwasher | `0xE1` | any other | — | 🧪 modelled | Expected to work as above: this family answers the cloud capability dictionary, so the entity set adapts per model | — |
 | Lamp | `0x13` | `79010863`, others | — | 🧪 modelled | Expected: on/off, brightness, tunable white 2700–6500 K, scene effects | — |
-| Water heater | `0xE2` | `51020ED1`, `510214FN`, `510214HB`, `5102152H`, `51001938`, others | — | 🧪 modelled | Expected: target temperature, on/off, operation modes, heating status | — |
-| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature`/`temperature`/`heating`-`standby`-`keep_warm` confirmed against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). `remaining_time` and a `fault` problem sensor added from the same payload. `operation_list` is `single`/`double`/`smart`, matching the app's real "Model" picker rather than the generic category's `eco`/`high_temp` flags, and a mode set **from Home Assistant has been confirmed to reach the appliance** — see [below](#the-51020ed8-model-picker) for the evidence. Manual temperature entry is correctly blocked while in Smart. Not yet confirmed: setting the *temperature* from Home Assistant reaching the appliance (only the mode was tried), the push channel, and disinfect/`highTemp`, which stays out of `operation_list` entirely. | reporter, own hardware |
+| Water heater | `0xE2` | `51020ED1`, `510214FN`, `510214HB`, `5102152H`, `51001938`, others | — | 🧪 modelled | Expected: target temperature, on/off, operation modes, heating status. The `single`/`double`/`smart` mode model and the Smart temperature lock below are extrapolated from a single unit's dumps and are unconfirmed for the rest of the family; a model that reports neither `bodyNum` nor `cloudSmart` shows no operation mode at all rather than a guessed one | — |
+| Water heater | `0xE2` | `51020ED8` | Terma AquaPro WiFi | ❓ reported | Entities populate on `thingProtocol` 2 (ALT-endpoint signing fix). `current_temperature` and `temperature` were checked against the unit, including which raw field is which (`temp` = setpoint, `targetTemp` = measured tank temperature — swapped from what the names suggest). Of the heating-status enum only `standby` and `heating` were seen; `keep_warm` (`heatStatus` 2) comes from the protocol and has not been observed. `remaining_time` and a `fault` problem sensor were added from the same payload but neither was watched change. `operation_list` is `single`/`double`/`smart`, matching the app's real "Model" picker rather than the generic category's `eco`/`high_temp` flags, and a mode set **from Home Assistant has been confirmed to reach the appliance** — see [below](#the-51020ed8-model-picker) for the evidence. Home Assistant refuses manual temperature entry while in Smart, as the app does. Not yet confirmed: setting the *temperature* from Home Assistant reaching the appliance (only the mode was tried), whether the cloud itself would reject that write in Smart, the push channel, and disinfect/`highTemp`, which stays out of `operation_list` entirely. | reporter, own hardware — [#3](https://github.com/dzerik/holabrain-ha/pull/3) |
 | Air conditioner | `0xAC` | any | — | 🧪 modelled | Expected: HVAC modes, target temperature, fan speeds; features come from the packed capability descriptor in the device record | — |
 | Oven | `0xB1` | any | — | 🧪 modelled | Expected: programme composition (mode, temperature, duration, probe, pre-heat) submitted by the start button, plus status and fault sensors | — |
 | Washing machine | `0xDB` | `38127413`, `38127414`, others | — | 🧪 modelled | Expected: status and phase, programme, temperature, spin and drying selects, power/run, dosing warnings, delayed start | — |
@@ -78,9 +78,9 @@ The app's own "Model" screen for this unit is a 3-way exclusive picker — **Sma
 **Single Bile** / **Dual Bile** ("Bile" is almost certainly a mistranslation of the Chinese
 for tank/liner, 胆, which also literally means "gallbladder"). It is modelled as one
 mutually-exclusive `operation_mode` (`single`/`double`/`smart`), not the independent
-`eco`/`cloudSmart`/`highTemp` flags a first pass at this category assumed, and not a static
-hardware descriptor either — the earlier `tank_configuration` sensor was dropped as
-redundant once the mode itself carries that information.
+`eco`/`cloudSmart`/`highTemp` flags a first pass at this category assumed. It is a setting,
+not a fixed property of the unit, so it needs no separate sensor reporting the tank
+configuration — the mode itself carries it.
 
 Raw `query` payloads for all three states, captured back to back on the same unit, are what
 the mapping below was built from:
@@ -89,7 +89,7 @@ the mapping below was built from:
 |---|---|---|---|---|
 | Dual Bile | `0` | `2` | unchanged | → `operation_mode: double` |
 | Single Bile | `0` | `1` | unchanged | → `operation_mode: single` |
-| Smart | `1` | `0` (new value, not `1`/`2`) | jumped to `75` (max) unprompted | → `operation_mode: smart`; manual temperature entry correctly blocked |
+| Smart | `1` | `0` (new value, not `1`/`2`) | jumped to `75` (max) unprompted | → `operation_mode: smart`; the app greys out manual temperature entry here, and the integration refuses it too |
 
 Two more things confirmed live rather than assumed, neither included in `operation_list`:
 

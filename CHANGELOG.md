@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Water heater: a `remaining_time` sensor (minutes to setpoint, while heating) and a `fault`
   problem sensor.
 
+### Changed
+
+- **Breaking — the water heater's operation modes are different values.** `operation_list`
+  offered `normal`, `eco`, `smart` and `high_temp`, read as independent flags. It now offers
+  the three mutually exclusive modes the vendor app's own "Model" picker shows —
+  `single`, `double`, `smart` — matching raw payloads captured from one unit
+  (Terma AquaPro WiFi, `51020ED8`; see [docs/hcl.md](docs/hcl.md)).
+
+  | Old mode | Use instead |
+  |---|---|
+  | `normal` | `double` (both tanks) is the closest equivalent; `single` if your unit heats one |
+  | `eco` | nothing — it was sent to the appliance and never came back in a status response, and the app has no Eco control |
+  | `high_temp` | nothing — it belongs to the app's separate scheduled disinfect cycle, not to this picker, and is left for its own release |
+
+  **Two things break, and the second one needs no service call at all.** Any automation,
+  script or scene that still sets `normal`, `eco` or `high_temp` now fails outright with
+  *Operation mode … is not valid*, so those calls must be edited by hand. And the entity's
+  own **state string changes on every `0xE2` water heater whether or not you ever touch the
+  service**: what read `normal` now reads `single`, `double` or `smart` — or `unknown` on a
+  model that reports neither `bodyNum` nor `cloudSmart`. Recorder history keeps the old
+  strings for past periods, so a history graph shows a discontinuity, and templates or
+  conditions comparing against `'normal'`, `'eco'` or `'high_temp'` stop matching.
+- The water heater refuses `water_heater.set_temperature` while Smart is active instead of
+  sending a setpoint the appliance overrides — Smart picks its own (it went straight to the
+  maximum on the unit above), and the vendor app disables manual entry there too. The call
+  raises rather than the control disappearing, so an automation is told what happened
+  instead of silently doing nothing.
+
 ### Fixed
 
 - Appliances on a non-direct `thingProtocol` (for example some `0xE2` water heaters) could
@@ -23,11 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actual temperature on models that report `targetTemp` but not `cur_temperature` — the
   cloud's field names are swapped from what they suggest (`temp` is the setpoint,
   `targetTemp` is the measured temperature).
-- Water heater `operation_list` no longer offers `normal`/`eco`/`high_temp`, none of which
-  a real 51020ED8 unit was confirmed to support (`eco` specifically was tried and never took
-  effect). It now offers `single`/`double`/`smart`, matching the appliance's own "Model"
-  picker, and Home Assistant correctly refuses a manual temperature while Smart is active —
-  the appliance picks its own setpoint in that mode and the vendor app disables entry too.
 - Water heater models that report neither `bodyNum` nor `cloudSmart` now show their
   operation mode as unknown instead of claiming `double` — the integration has no evidence
   of those units' tank count.

@@ -455,35 +455,65 @@ examples:
 
 ### Heat the water only on the cheap tariff
 
+The water heater's own thermostat is what does the work here, so the automation only moves the
+setpoint up for the night and back down in the morning:
+
 ```yaml
 automation:
-  - alias: Boiler on the night tariff
+  - alias: Boiler up on the night tariff
     triggers:
       - trigger: time
         at: "23:30:00"
     actions:
-      - action: water_heater.set_operation_mode
+      - action: water_heater.turn_on
         target:
           entity_id: water_heater.boiler
-        data:
-          operation_mode: high_temp
       - action: water_heater.set_temperature
         target:
           entity_id: water_heater.boiler
         data:
           temperature: 70
 
-  - alias: Boiler back to eco in the morning
+  - alias: Boiler back down in the morning
     triggers:
       - trigger: time
         at: "06:30:00"
+    actions:
+      - action: water_heater.set_temperature
+        target:
+          entity_id: water_heater.boiler
+        data:
+          temperature: 45
+```
+
+### Hand the setpoint back to the appliance
+
+`operation_mode` on this category is not a temperature preset — it is the appliance's own
+"Model" picker: `single` and `double` say which of a two-tank unit's tanks it heats, and
+`smart` lets the appliance choose the setpoint itself.
+
+```yaml
+automation:
+  - alias: Boiler back to Smart for the weekend
+    triggers:
+      - trigger: time
+        at: "22:00:00"
+    conditions:
+      - condition: time
+        weekday: [fri]
     actions:
       - action: water_heater.set_operation_mode
         target:
           entity_id: water_heater.boiler
         data:
-          operation_mode: eco
+          operation_mode: smart
 ```
+
+Do not follow `smart` with a `water_heater.set_temperature` step: the appliance picks its own
+setpoint in that mode, so the call is refused with an error rather than quietly ignored — see
+[entities.md](entities.md). Automations written against the older
+`normal` / `eco` / `high_temp` modes fail the same way and have to be moved to these three;
+[CHANGELOG.md](../CHANGELOG.md) has the mapping.
 
 ### Cool the bedroom before bedtime
 

@@ -504,8 +504,10 @@ LAMP = CategorySpec(
 
 # =========================================================================================
 # 0xE2 — Water heater → native `water_heater` platform.
-# Note: modelled from the cloud protocol; verified on one unit (Terma AquaPro WiFi,
-# model 51020ED8) — see docs/hcl.md. The rest of the family is still unconfirmed.
+# Note: modelled from the cloud protocol; reported working on one unit (Terma AquaPro WiFi,
+# model 51020ED8) — see docs/hcl.md for what was actually checked there. "Verified" is
+# reserved for readings matching the panel *and* every command taking effect, which this
+# category has not reached; the rest of the family is unconfirmed entirely.
 # =========================================================================================
 
 # Power says whether the appliance is alive; heatStatus says what the element is doing.

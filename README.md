@@ -68,12 +68,15 @@ the unverified categories are the single most valuable thing you can contribute.
 | Washing machine | composite | 🧪 modelled from the cloud API, unverified |
 | Oven | composite (programme composer) | 🧪 modelled from the cloud API, unverified |
 | Air conditioner | `climate` | 🧪 modelled from the cloud API, unverified |
-| Water heater | `water_heater` | 🧪 modelled from the cloud API, unverified |
+| Water heater | `water_heater` | ❓ one unit reported working, rest of the family modelled |
 | Lamp | `light` | 🧪 modelled from the cloud API, unverified |
 
 🧪 means the appliance will appear and its entities will be created, but the behaviour has
-never been observed on a physical unit. The per-model list, what "verified" covers and what
-to check if you own a 🧪 appliance are in **[docs/hcl.md](docs/hcl.md)**.
+never been observed on a physical unit. ❓ means a user reported one model working with less
+than full coverage — for the water heater that is a Terma AquaPro WiFi (`51020ED8`), whose
+readings and one mode command were checked against the appliance while the temperature write
+and the push channel were not. The per-model list, what "verified" covers and what to check
+if you own a 🧪 or ❓ appliance are in **[docs/hcl.md](docs/hcl.md)**.
 
 An appliance category the integration does not know yet raises a **repair issue** naming its
 type and model, instead of silently doing nothing.
