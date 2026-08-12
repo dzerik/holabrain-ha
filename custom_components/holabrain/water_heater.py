@@ -80,10 +80,19 @@ class HolabrainWaterHeater(HolabrainEntity, WaterHeaterEntity):
 
     @property
     def current_operation(self) -> str | None:
+        reported = False
         for key, expected, mode in self._cfg.operation_flags:
-            if str(self._value(key)) == expected:
+            value = self._value(key)
+            if value is None:
+                continue
+            reported = True
+            if str(value) == expected:
                 return mode
-        return self._cfg.default_operation
+        # The default only resolves a combination of flags we cannot name — it is not a
+        # claim about a unit that reports no mode flag at all. Several models of the family
+        # send neither key, and answering "double" there would state their tank count on no
+        # evidence; unknown says what is actually known.
+        return self._cfg.default_operation if reported else None
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         temperature = kwargs.get(ATTR_TEMPERATURE)

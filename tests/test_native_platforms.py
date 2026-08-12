@@ -13,6 +13,7 @@ from datetime import timedelta
 import pytest
 from homeassistant.components.climate import HVACMode
 from homeassistant.components.water_heater import WaterHeaterEntityFeature
+from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
@@ -366,12 +367,13 @@ async def test_a_non_numeric_temperature_reading_is_dropped_not_raised(
 # =========================================================================================
 
 
-async def test_water_heater_reports_temperatures_and_the_default_mode(
+async def test_water_heater_reports_temperatures_and_the_flagged_mode(
     hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
 ) -> None:
-    """With no mode flag matching, the appliance still reports a real mode — not no mode.
+    """The setpoint and the tank reading come from two differently named keys.
 
-    ``current_operation = None`` renders as unknown and cannot be used in an automation.
+    ``temp`` is the setpoint and ``cur_temperature`` the measurement; the mode here is the
+    one the fixture's ``bodyNum`` actually names, not a fallback.
     """
     assert await setup_integration()
 
@@ -379,6 +381,27 @@ async def test_water_heater_reports_temperatures_and_the_default_mode(
     assert state.attributes["temperature"] == 60
     assert state.attributes["current_temperature"] == 48
     assert state.state == "double"
+
+
+async def test_operation_mode_is_unknown_when_the_unit_reports_no_flag(
+    hass: HomeAssistant, boiler_cloud: FakeCloud, setup_integration, entity_id_of
+) -> None:
+    """Several 0xE2 models send neither ``bodyNum`` nor ``cloudSmart``.
+
+    Falling back to the category default there would tell the user their appliance is in
+    dual-tank mode — a statement about its physical tank count backed by nothing. Unknown
+    is the honest answer, and the rest of the entity must keep working around it.
+    """
+    assert await setup_integration()
+    entity_id = entity_id_of("water_heater", f"{BOILER_CODE}_water_heater")
+
+    boiler_cloud.drop_attrs(BOILER_CODE, "cloudSmart", "bodyNum")
+    await _poll(hass)
+
+    state = hass.states.get(entity_id)
+    assert state.state == STATE_UNKNOWN
+    assert state.attributes["temperature"] == 60
+    assert state.attributes["current_temperature"] == 48
 
 
 @pytest.mark.parametrize(

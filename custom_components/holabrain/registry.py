@@ -186,8 +186,10 @@ class WaterHeaterConfig:
     min_temp: int = 35
     max_temp: int = 75
     operations: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
-    # (key, expected value, mode). Checked in order, first match wins, else the default.
+    # (key, expected value, mode). Checked in order, first match wins.
     operation_flags: tuple[tuple[str, str, str], ...] = ()
+    # Used only when the appliance reports at least one of the flag keys above with a
+    # combination none of them names; a model that reports none of them stays unknown.
     default_operation: str = "normal"
     # (key, value) at which the appliance itself refuses manual temperature entry — the
     # 51020ED8 does this while in its "Smart" mode, which picks its own setpoint.

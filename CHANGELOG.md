@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   effect). It now offers `single`/`double`/`smart`, matching the appliance's own "Model"
   picker, and Home Assistant correctly refuses a manual temperature while Smart is active —
   the appliance picks its own setpoint in that mode and the vendor app disables entry too.
+- Water heater models that report neither `bodyNum` nor `cloudSmart` now show their
+  operation mode as unknown instead of claiming `double` — the integration has no evidence
+  of those units' tank count.
 
 ## [0.15.0] - 2026-08-10
 
