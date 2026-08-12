@@ -1,8 +1,9 @@
 """Command/status routing by the appliance's announced protocol.
 
-Appliances speak one of two command dialects. The payload is identical, only the path
-differs, so a wrong route fails as an opaque cloud error rather than anything obvious — and
-only on the appliance families that use the other dialect. These tests pin the routing.
+Appliances speak one of two command dialects. The payload is identical; the path and the
+signing scheme differ, so a wrong route fails as an opaque cloud error rather than anything
+obvious — and only on the appliance families that use the other dialect. These tests pin the
+routing.
 """
 
 import pytest
@@ -28,10 +29,18 @@ def _device(thing_code: str, protocol: int) -> dict:
 class FakeAuth:
     def __init__(self, listing: list[dict]) -> None:
         self._listing = listing
+        self._listed = False
         self.tob_calls: list[tuple[str, dict]] = []
+        self.oem_calls: list[tuple[str, dict]] = []
 
     async def oem(self, path, payload=None):
-        return {"code": 0, "data": self._listing}
+        # The account listing is an OEM call too, but it is not a routing decision — keep it
+        # out of oem_calls so the per-device assertions below index what they mean.
+        if not self._listed:
+            self._listed = True
+            return {"code": 0, "data": self._listing}
+        self.oem_calls.append((path, payload))
+        return {"code": 0, "data": {"power": "1"}}
 
     async def tob(self, path, payload=None):
         self.tob_calls.append((path, payload))
@@ -54,6 +63,7 @@ async def test_direct_protocol_uses_the_verified_paths():
 
 @pytest.mark.asyncio
 async def test_other_protocol_uses_the_alternate_paths():
+    """The alternate dialect changes the signer as well: ToB would be rejected outright."""
     auth = FakeAuth([_device(ALT_CODE, 2)])
     api = DeviceApi(auth)
     await api.async_list()
@@ -61,9 +71,10 @@ async def test_other_protocol_uses_the_alternate_paths():
     await api.async_send_instruction(ALT_CODE, {"startPause": "1"})
     await api.async_get_state(ALT_CODE)
 
-    command_path, status_path = (call[0] for call in auth.tob_calls)
-    assert command_path.endswith(f"/appliance/deviceCommands/requestNoReply/{ALT_CODE}")
-    assert status_path.endswith(f"/appliance/deviceCommands/query/{ALT_CODE}")
+    assert auth.tob_calls == []
+    command_path, status_path = (call[0] for call in auth.oem_calls)
+    assert command_path == f"/v1/appliance/deviceCommands/requestNoReply/{ALT_CODE}"
+    assert status_path == f"/v1/appliance/deviceCommands/query/{ALT_CODE}"
 
 
 @pytest.mark.asyncio
@@ -77,7 +88,7 @@ async def test_the_payload_is_identical_on_both_dialects():
     await api.async_send_instruction(DIRECT_CODE, {"power": "1"})
     await api.async_send_instruction(ALT_CODE, {"power": "1"})
 
-    assert auth.tob_calls[0][1] == auth.tob_calls[1][1] == {"instruction": {"power": "1"}}
+    assert auth.tob_calls[0][1] == auth.oem_calls[0][1] == {"instruction": {"power": "1"}}
 
 
 @pytest.mark.asyncio
@@ -90,8 +101,8 @@ async def test_mixed_account_routes_each_device_independently():
     await api.async_get_state(DIRECT_CODE)
     await api.async_get_state(ALT_CODE)
 
-    assert "/appliance/query/" in auth.tob_calls[0][0]
-    assert "/appliance/deviceCommands/query/" in auth.tob_calls[1][0]
+    assert auth.tob_calls[0][0].endswith(f"/appliance/query/{DIRECT_CODE}")
+    assert auth.oem_calls[0][0] == f"/v1/appliance/deviceCommands/query/{ALT_CODE}"
 
 
 @pytest.mark.asyncio
