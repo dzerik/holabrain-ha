@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-12
+
 ### Added
 
 - Water heater: a `remaining_time` sensor (minutes to setpoint, while heating) and a `fault`
