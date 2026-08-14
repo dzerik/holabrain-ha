@@ -8,6 +8,7 @@ receives its ``httpx.AsyncClient`` by dependency injection so tests can drive it
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from typing import Any
@@ -35,6 +36,14 @@ from ..exceptions import (
     RateLimitError,
     TokenExpiredError,
 )
+from ..redact import redact_path
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _ms(started: float) -> float:
+    return (time.monotonic() - started) * 1000
+
 
 # The token is stale. Logging in again fixes it, and nothing is competing for the account.
 _TOKEN_EXPIRED_CODES = frozenset({14005})
@@ -144,26 +153,40 @@ class HttpTransport:
 
     async def _send(self, path: str, body: str, headers: dict[str, str]) -> dict[str, Any]:
         url = self._base + path
+        # Every message about this request names the appliance-free form of the path: the
+        # device endpoints carry the appliance id as their last segment, and these strings
+        # end up in log files that are attached to public issues.
+        safe = redact_path(path)
+        started = time.monotonic()
         try:
             response = await self._client.post(
                 url, content=body.encode(), headers=headers, timeout=self._timeout
             )
         except httpx.HTTPError as err:
-            raise NetworkError(f"request to {path} failed: {err}") from err
+            _LOGGER.debug("%s failed after %.0f ms: %s", safe, _ms(started), err)
+            raise NetworkError(f"request to {safe} failed: {err}") from err
 
+        _LOGGER.debug(
+            "%s -> HTTP %s in %.0f ms", safe, response.status_code, _ms(started)
+        )
         if response.status_code in (401, 403):
-            raise AuthError(f"{path} returned HTTP {response.status_code}")
+            raise AuthError(f"{safe} returned HTTP {response.status_code}")
         if response.status_code == 429:
-            raise RateLimitError(f"{path} rate limited", code=429)
+            raise RateLimitError(f"{safe} rate limited", code=429)
 
         try:
             data = response.json()
         except (json.JSONDecodeError, ValueError) as err:
-            raise ApiError(f"{path} returned non-JSON (HTTP {response.status_code})") from err
+            raise ApiError(f"{safe} returned non-JSON (HTTP {response.status_code})") from err
         if not isinstance(data, dict):
-            raise ApiError(f"{path} returned unexpected payload type {type(data).__name__}")
+            raise ApiError(f"{safe} returned unexpected payload type {type(data).__name__}")
 
         code = data.get("code")
+        if code not in (0, None):
+            # The business code is what decides whether this becomes an auth failure, a
+            # throttle or a plain error, and an unmapped one is the single most useful thing
+            # a report can carry — the cloud's own text names the symptom, never the number.
+            _LOGGER.debug("%s answered business code %s: %s", safe, code, data.get("msg"))
         if code is None and not response.is_success:
             # Some gateway errors answer with a JSON body that carries no business code at
             # all. Without this check they would fall into the permissive branch below and
@@ -171,7 +194,7 @@ class HttpTransport:
             # becomes an empty device inventory (and every device is forgotten), and a write
             # that never happened is reported as done. The status and the path are in the
             # message because that pair is the only thing that identifies such a failure.
-            raise ApiError(f"{path} returned HTTP {response.status_code} without a code")
+            raise ApiError(f"{safe} returned HTTP {response.status_code} without a code")
         if code in (0, None):
             return data
         message = str(data.get("msg") or data.get("message") or "").strip() or f"code {code}"

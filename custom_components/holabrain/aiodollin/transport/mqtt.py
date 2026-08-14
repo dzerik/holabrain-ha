@@ -11,8 +11,13 @@ paho is imported lazily so importing aiodollin never hard-requires it.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable, Iterable
 from typing import Any
+
+from ..redact import redact_path
+
+_LOGGER = logging.getLogger(__name__)
 
 MessageCallback = Callable[[str, dict[str, Any]], None]
 StateCallback = Callable[[Any], None]
@@ -83,6 +88,11 @@ class MqttClient:
             payload = json.loads(message.payload.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             # Keep the pipeline alive on a malformed frame instead of crashing the loop.
+            _LOGGER.debug(
+                "push frame on %s was not JSON (%s bytes), passing it through raw",
+                redact_path(message.topic),
+                len(message.payload),
+            )
             payload = {"_raw": message.payload[:256].hex()}
         if not isinstance(payload, dict):
             payload = {"_value": payload}
@@ -92,6 +102,11 @@ class MqttClient:
         self, client: Any, _userdata: Any, _flags: Any, reason_code: Any, _properties: Any = None
     ) -> None:
         # Re-subscribe on every (re)connect — subscriptions do not survive a broker drop.
+        _LOGGER.debug(
+            "push connected (%s), re-subscribing to %s topic(s)",
+            reason_code,
+            len(self._subscriptions),
+        )
         for topic in self._subscriptions:
             client.subscribe(topic, qos=0)
         if self._on_connect is not None:
@@ -100,5 +115,8 @@ class MqttClient:
     def _handle_disconnect(
         self, _client: Any, _userdata: Any, _flags: Any, reason_code: Any, _properties: Any = None
     ) -> None:
+        # The poll takes over while push is down, so a silent drop looks like nothing more
+        # than slower updates — this is the line that says why.
+        _LOGGER.debug("push disconnected (%s)", reason_code)
         if self._on_disconnect is not None:
             self._on_disconnect(reason_code)

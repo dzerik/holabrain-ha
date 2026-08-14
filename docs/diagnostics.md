@@ -94,6 +94,9 @@ logger:
   default: warning
   logs:
     custom_components.holabrain: debug
+    # httpx logs every request URL at info, and a device URL ends with the appliance id.
+    # Quieting it keeps that id out of a log you are about to attach to an issue.
+    httpx: warning
 ```
 
 Restart Home Assistant. One entry covers the whole integration, including the `aiodollin`
@@ -102,6 +105,26 @@ is kept as `home-assistant.log.1`); it is also readable in the UI under
 **Settings → System → Logs → Load full logs**.
 
 Turn it back off when you are done — debug logging is verbose and the file grows quickly.
+
+### What debug actually records
+
+The integration's own debug lines are its *decisions*, not your data:
+
+- every cloud request as `path -> HTTP status in N ms`, with the appliance id replaced by
+  the same pseudonym the diagnostics dump uses, so a log and a dump can be read together;
+- the business code and message behind any non-success answer — the one thing a report needs
+  and the error text alone never carries;
+- which command dialect and signature each appliance was given, and the `thingProtocol` it
+  was decided from;
+- which authentication branch ran — token replaced, session reclaimed under the cool-down,
+  or credentials refused — and how much of the re-login budget is left;
+- push connect, disconnect and re-subscribe.
+
+Request and response bodies are **not** logged at any level. When a mapping question needs
+one, the redacted status payload in the diagnostics dump is the thing to attach.
+
+Nothing sensitive is written by the integration itself, but the `httpx` line above matters:
+that library is not ours and it prints full URLs.
 
 ### Reading and trimming it
 

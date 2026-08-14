@@ -24,6 +24,7 @@ Two consequences shape this class:
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -35,9 +36,12 @@ from ..exceptions import (
     SessionTakeoverError,
     TokenExpiredError,
 )
+from ..redact import redact_path
 from ..transport.http import HttpTransport
 from .signer import encrypt_password
 from .store import Session, TokenStore
+
+_LOGGER = logging.getLogger(__name__)
 
 # Cool-down before reclaiming a session that was taken over, indexed by how many takeovers
 # happened recently. The first one retries immediately, because a single unexplained
@@ -234,19 +238,35 @@ class AuthManager:
         the call rather than resending them. The retried call sits outside the `except` that
         triggered it, so a second failure propagates instead of looping.
         """
+        safe = redact_path(path)
         token = await self.async_get_token()
         try:
             result = await request(path, payload, access_token=token)
         except CredentialsRejectedError:
             # The credentials themselves were refused. Logging in would resend them.
+            _LOGGER.debug("%s: the cloud refused the credentials, not retrying", safe)
             raise
         except TokenExpiredError:
             if self._expiry_within_budget():
+                _LOGGER.debug(
+                    "%s: token expired, signing in again (%s of %s allowed in this window)",
+                    safe,
+                    self._expiries_in_window,
+                    EXPIRY_RELOGIN_LIMIT,
+                )
                 token = await self._async_relogin()
             else:
+                # Past the budget the expiry reading is no longer trusted; say so, because
+                # this is the line that tells us the code mapping is wrong in the field.
+                _LOGGER.debug(
+                    "%s: %s expiries inside the window, treating this one as a takeover",
+                    safe,
+                    self._expiries_in_window,
+                )
                 token = await self._async_recover()
             result = await request(path, payload, access_token=token)
         except AuthError:
+            _LOGGER.debug("%s: token refused for an unnamed reason, reclaiming", safe)
             token = await self._async_recover()
             result = await request(path, payload, access_token=token)
         return result

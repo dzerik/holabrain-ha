@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-14
+
+### Added
+
+- Debug logging that makes a cloud problem reportable in one pass. With
+  `custom_components.holabrain: debug` the log now records every request as
+  `path -> HTTP status in N ms`, the business code and message behind any non-success
+  answer, which command dialect and signature each appliance was given, which
+  authentication branch ran and how much of the re-login budget is left, and the push
+  channel connecting, dropping and re-subscribing. See
+  [docs/diagnostics.md](docs/diagnostics.md#what-debug-actually-records).
+
+  Appliance ids are replaced by the same pseudonyms the diagnostics dump uses, so a log and
+  a dump can be read together and neither identifies your appliances. Request and response
+  bodies are not logged at any level. One caveat worth knowing before you attach a log:
+  `httpx` is not ours and prints full URLs at `info`, so the documented snippet quiets it.
+
 ## [0.16.3] - 2026-08-12
 
 ### Fixed
