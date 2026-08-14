@@ -55,7 +55,12 @@ class ApiError(DollinError):
     """
 
     def __init__(self, message: str, *, code: int | None = None) -> None:
-        super().__init__(message)
+        # The code is rendered, not just stored. When a code is missing from the auth
+        # mapping the cloud's own text describes the symptom ("Token has expired") and
+        # never the number, nothing in the transport logs the raw response, and the
+        # traceback Home Assistant shows carries only ``str(err)`` — so an unrendered code
+        # is a number that exists but can reach nobody who could act on it.
+        super().__init__(f"{message} (code {code})" if code is not None else message)
         self.code = code
 
 

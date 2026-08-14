@@ -196,3 +196,23 @@ async def test_auth_codes_are_told_apart(code, expected):
         await transport.oem_request("/v1/x")
     assert type(excinfo.value) is expected
     await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_an_unmapped_business_code_names_itself_in_the_message():
+    """A code we do not classify is exactly the one we need a bug report to name.
+
+    The cloud's own text describes the symptom ("Token has expired"), not which mapping
+    entry is missing, and nothing in the transport logs the raw response — so if the code
+    is not in the exception's message it never reaches anyone who could act on it.
+    """
+    client = _client(
+        lambda r: httpx.Response(200, json={"code": 40004, "msg": "Token has expired"})
+    )
+    transport = HttpTransport(client, region="eu")
+    with pytest.raises(ApiError) as excinfo:
+        await transport.oem_request("/v1/homeIndex")
+    assert excinfo.value.code == 40004
+    assert "Token has expired" in str(excinfo.value)
+    assert "40004" in str(excinfo.value)
+    await client.aclose()

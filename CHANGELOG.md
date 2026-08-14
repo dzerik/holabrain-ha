@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-08-12
+
+### Fixed
+
+- Cloud errors now name the code the cloud returned. A business code the integration does
+  not classify used to surface as the cloud's own text alone — "Token has expired" with no
+  number — which describes the symptom but not the mapping entry that is missing, and
+  nothing else in the request path records it. If you are seeing an error like that, the
+  number in the new message is exactly what a bug report needs.
+
+### Changed
+
+- Documentation for the `0xE2` water heater now records what the appliance actually does
+  with a setpoint sent while Smart is active: it neither rejects nor applies it, but leaves
+  Smart and restores the previous setpoint. The refusal Home Assistant raises is therefore
+  preventing a silent mode change, not mirroring a refusal by the appliance.
+
 ## [0.16.0] - 2026-08-12
 
 ### Added
