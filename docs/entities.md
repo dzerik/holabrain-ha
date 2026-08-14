@@ -159,10 +159,14 @@ two-tank unit's tanks it heats, `smart` hands the setpoint to the appliance. A m
 reports neither of the underlying keys shows its mode as `unknown` rather than being credited
 with a tank count nothing states.
 
-**Setting a temperature while in `smart` is refused** with an error, not silently dropped:
-the appliance picks its own setpoint in that mode (it went straight to 75 °C on the unit
-above) and the vendor app disables manual entry there too. Leave `smart` for another mode
-first if an automation needs to set a temperature.
+**Setting a temperature while in `smart` is refused** with an error, not silently dropped.
+The appliance picks its own setpoint in that mode — it went straight to 75 °C on the unit
+above — and the vendor app disables manual entry there too. Forwarding the write instead of
+refusing it would be worse than useless: tried against the real unit with the guard removed,
+the appliance neither rejected the value nor applied it, but dropped out of `smart` back to
+`double` and restored the previous setpoint. A `set_temperature` call would then change the
+operation mode as an invisible side effect. Switch to another mode first if an automation
+needs to set a temperature.
 
 ---
 

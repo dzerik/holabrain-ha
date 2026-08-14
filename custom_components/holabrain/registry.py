@@ -191,8 +191,10 @@ class WaterHeaterConfig:
     # Used only when the appliance reports at least one of the flag keys above with a
     # combination none of them names; a model that reports none of them stays unknown.
     default_operation: str = "normal"
-    # (key, value) at which the appliance itself refuses manual temperature entry — the
-    # 51020ED8 does this while in its "Smart" mode, which picks its own setpoint.
+    # (key, value) at which a manual setpoint must be refused rather than forwarded. On the
+    # 51020ED8 in "Smart" mode the appliance neither rejects the write nor applies it: it
+    # silently leaves Smart and reverts the setpoint, so forwarding would change the
+    # operation mode as an invisible side effect of a temperature call.
     temp_locked_when: tuple[str, str] | None = None
 
 
@@ -553,8 +555,10 @@ WATER_HEATER = CategorySpec(
             ("bodyNum", "2", "double"),
         ),
         default_operation="double",
-        # Smart mode picks its own setpoint (jumped straight to the appliance's max on the
-        # real unit) and the app itself disables manual entry while it is active.
+        # Smart picks its own setpoint (jumped straight to the appliance's max on the real
+        # unit) and the app disables manual entry while it is active. Tried anyway with the
+        # guard removed, the unit dropped out of Smart back to Double and restored the old
+        # setpoint — so the write is not rejected, it is a disguised mode change.
         temp_locked_when=("cloudSmart", "1"),
     ),
     sensors=(

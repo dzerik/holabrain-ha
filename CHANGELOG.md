@@ -37,10 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   strings for past periods, so a history graph shows a discontinuity, and templates or
   conditions comparing against `'normal'`, `'eco'` or `'high_temp'` stop matching.
 - The water heater refuses `water_heater.set_temperature` while Smart is active instead of
-  sending a setpoint the appliance overrides — Smart picks its own (it went straight to the
-  maximum on the unit above), and the vendor app disables manual entry there too. The call
-  raises rather than the control disappearing, so an automation is told what happened
-  instead of silently doing nothing.
+  forwarding a setpoint the appliance turns into a mode change. Smart picks its own (it went
+  straight to the maximum on the unit above), and the vendor app disables manual entry there
+  too; forwarded anyway, the appliance dropped out of Smart and restored the old setpoint.
+  The call raises rather than the control disappearing, so an automation is told what
+  happened instead of silently doing nothing.
 
 ### Fixed
 
