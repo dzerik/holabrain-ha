@@ -46,13 +46,23 @@ def _ms(started: float) -> float:
 
 
 # The token is stale. Logging in again fixes it, and nothing is competing for the account.
-_TOKEN_EXPIRED_CODES = frozenset({14005})
+# 12001 is confirmed, not inferred: a live account answered it with "Token has expired" while
+# Home Assistant looped on setup, unable to recover because the code was in none of these
+# sets and so never became an AuthError at all.
+_TOKEN_EXPIRED_CODES = frozenset({12001})
 # The account or the password itself was refused. Logging in again would resend the same
 # rejected credentials, so the caller must stop and ask the user.
 _CREDENTIALS_REJECTED_CODES = frozenset({3114016})
 # Auth failures whose meaning is not known. They keep the conservative reading — assume the
 # session was taken over by another client — because that path backs off instead of looping.
-_AUTH_CODES = frozenset({5}) | _TOKEN_EXPIRED_CODES | _CREDENTIALS_REJECTED_CODES
+#
+# 14005 sits here rather than in the expiry set. It was put there as a guess, reconstructed
+# from this project's own fixtures, standing in for the code we have now identified as 12001.
+# With the real one known, the guess has no evidence left supporting it, and what evidence
+# there is points the other way: the only place 14005 appears with a message from the cloud,
+# it reads "unusual activity" — the wording of a takeover, not an expiry. The conservative
+# branch still recovers, it just serves the cool-down first.
+_AUTH_CODES = frozenset({5, 14005}) | _TOKEN_EXPIRED_CODES | _CREDENTIALS_REJECTED_CODES
 _RATE_LIMIT_CODES = frozenset({4001, 429})
 
 

@@ -414,7 +414,11 @@ class FakeCloud:
         else:
             token = request.headers.get("accessToken", "")
         if token != self.token:
-            return httpx.Response(200, json={"code": 14005, "msg": "token invalid"})
+            # The token presented is not the account's live one — which in a one-session
+            # cloud is the takeover shape, and 14005 is classified accordingly. An expired
+            # token is a different code (12001) with its own fast path; tests that want that
+            # branch script it explicitly rather than going through this check.
+            return httpx.Response(200, json={"code": 14005, "msg": "unusual activity"})
         return None
 
     # -- endpoint handlers ---------------------------------------------------------------

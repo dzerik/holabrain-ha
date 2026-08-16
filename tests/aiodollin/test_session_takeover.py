@@ -292,11 +292,11 @@ async def test_a_manual_refresh_ignores_the_cool_down():
 
 # --- the expiry budget --------------------------------------------------------------------
 #
-# `TokenExpiredError` is a guess reconstructed from fixtures, not from vendor documentation
-# (see the design doc's "Known risk"). If the guess is wrong and 14005 actually means "the
-# session was claimed elsewhere", the fast path below would re-login forever against a
-# client that keeps reclaiming the session — the ping-pong protection exists precisely to
-# prevent that, and an unbudgeted expiry branch would switch it off entirely.
+# The expiry code (12001) is confirmed against a live account, but the budget stays: the set
+# is still a reading of an undocumented API, and one wrong entry in it would re-login forever
+# against a client that keeps reclaiming the session. The ping-pong protection exists exactly
+# to prevent that, and an unbudgeted expiry branch would switch it off entirely. The budget is
+# what makes a future mistake survivable rather than permanent.
 
 
 @pytest.mark.asyncio

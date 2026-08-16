@@ -178,7 +178,11 @@ def test_unknown_region_rejected():
 @pytest.mark.parametrize(
     ("code", "expected"),
     [
-        (14005, TokenExpiredError),
+        # Confirmed against a live account: the cloud answers an expired token with 12001
+        # and the message "Token has expired". 14005 was a guess standing in for exactly
+        # this code and is no longer in the expiry set — see the bare-AuthError case below.
+        (12001, TokenExpiredError),
+        (14005, AuthError),
         (3114016, CredentialsRejectedError),
         (5, AuthError),
     ],

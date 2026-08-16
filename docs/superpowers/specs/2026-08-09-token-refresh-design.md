@@ -32,7 +32,24 @@ currently means reloading the config entry or re-entering the password.
 - **Manual refresh is exposed as both a service and a button**, the service being the primary
   mechanism.
 
-### Known risk
+### Known risk — settled by field evidence, 2026-08-15
+
+**This section's guess was wrong, and the way it was wrong was not the way it anticipated.**
+A live account answered an expired token with code **12001** and the message "Token has
+expired". That code was in none of the sets below, so it never became an `AuthError` at all:
+the retry machinery this document describes was never reached, and Home Assistant looped on
+`ConfigEntryNotReady` every 30 seconds with a token nothing would ever refresh.
+
+So the failure was not "14005 turns out to mean takeover" — it was that the real expiry code
+had never been seen. `12001` is now the expiry set; `14005`, which was a guess standing in
+for exactly this code, moved to the unknown branch, where the cool-down applies before a
+retry. The budget below stays: it is what keeps a future wrong entry survivable.
+
+The original reasoning is kept as written, because the lesson is in it — the mapping was
+reconstructed from this project's own fixtures, and a fixture can only ever confirm what its
+author already believed.
+
+### Known risk (as written before the above)
 
 The code-to-meaning mapping is reconstructed from test fixtures, not from vendor
 documentation, and the evidence for `14005` cuts both ways. `tests/conftest.py` returns

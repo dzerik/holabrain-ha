@@ -98,10 +98,10 @@ async def test_rejected_token_at_boot_is_an_auth_failure_not_a_retry(
     Retrying a login the cloud has rejected every 30 seconds is how an account gets locked;
     the entry has to go to an auth-error state so the user is asked to sign in again.
 
-    Business code 3114016 (`CredentialsRejectedError`), not 14005: since this branch split
-    the auth codes, 14005 means an expired token, which *is* safe to retry — see
-    `AuthManager`'s expiry budget and `docs/superpowers/specs/2026-08-09-token-refresh-
-    design.md`'s "Known risk". A rejected account/password is what must not be retried.
+    Business code 3114016 (`CredentialsRejectedError`) specifically: it is the one auth code
+    that must never lead to another login attempt, because the credentials themselves are
+    what the cloud refused. An expired token (12001) and an unexplained rejection both do
+    get retried — see `AuthManager`'s expiry budget and its cool-down.
     """
     # The account list request answers with an auth code, and the re-login is refused too.
     cloud.fail_next(FakeCloud.DEVICES, {"code": 3114016, "msg": "wrong credentials"})

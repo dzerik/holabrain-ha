@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-08-15
+
+### Fixed
+
+- **An expired token no longer wedges the integration.** The cloud reports an expired token
+  with business code `12001`, which the integration did not recognise — so it never became
+  an authentication failure, no re-login was attempted, and setup retried every 30 seconds
+  forever with a token nothing would refresh. Symptom: repeating
+  *"Unexpected error fetching holabrain data … Token has expired"* and an integration stuck
+  on *Retrying setup*. The stored account and password were always there; nothing was ever
+  asking them to be used.
+
+  If you hit this, no action is needed beyond updating — the next request signs in again by
+  itself. The workaround before this release was **HolaBrain → ⋮ → Reconfigure**, which
+  drops the stored session.
+
+- Code `14005` is no longer treated as an expired token. It was a guess standing in for the
+  code above, and the only message ever seen with it reads "unusual activity" — the wording
+  of a session taken over by another client. It now takes the conservative path, which still
+  recovers but serves the reclaim cool-down first.
+
 ## [0.17.0] - 2026-08-14
 
 ### Added
