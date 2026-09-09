@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/fetch_lua_codecs.py` — a reverse-engineering utility (not part of the integration
+  runtime) that downloads standard msmart per-model `.lua` protocol codecs from the public
+  MSmartHome cloud, with interactive login and an `--all` catalogue sweep. Kept as a protocol
+  reference for the binary/transparent path; the integration itself uses the flat-JSON plugin
+  dialect and needs no codec.
+
 ## [0.19.0] - 2026-09-09
 
 ### Added
