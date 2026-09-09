@@ -12,7 +12,7 @@ Adding a category = adding one ``CategorySpec`` here (plus, for a native platfor
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
@@ -38,6 +38,13 @@ from .conditions import (
 TRANSFORM_REMAIN_MINUTES = "remain_minutes"  # remainTimeH*256 + remainTimeL
 TRANSFORM_SECONDS_MINUTES = "seconds_minutes"  # whole seconds -> minutes (rounded up)
 TRANSFORM_OVEN_STATUS = "oven_status"  # devstatus + preheat phase + reachability
+
+# Extra status keys a transform reads beyond the descriptor's own ``key``. Kept here so the
+# diagnostic fallback (:func:`referenced_keys`) does not report a companion byte as unmapped.
+# ``oven_status`` also reads ``preheatState``, but that is already a descriptor key of its own.
+_TRANSFORM_COMPANION_KEYS: Mapping[str, tuple[str, ...]] = {
+    TRANSFORM_REMAIN_MINUTES: ("remainTimeH",),  # remainTimeL is the descriptor key
+}
 
 #: Categories that meter their own water and electricity. Creating consumption sensors
 #: for a lamp would produce readings that are permanently unknown.
@@ -868,3 +875,63 @@ CATEGORIES: dict[str, CategorySpec] = {
 def get_category(device_type: str) -> CategorySpec | None:
     """Return the spec for a device type, or None if the category is not yet supported."""
     return CATEGORIES.get(device_type)
+
+
+def _config_keys(config: object) -> set[str]:
+    """Status keys a native-platform config binds to, harvested by field-name convention.
+
+    Every config field naming a cloud key ends in ``_key`` (a single name) or ``_keys`` (a
+    tuple of fallbacks); two water-heater fields carry a key inside a tuple without that
+    suffix, so they are picked up by name. Keeping this convention-driven means a new config
+    field is covered automatically as long as it follows the naming.
+    """
+    keys: set[str] = set()
+    for f in fields(config):  # type: ignore[arg-type]
+        value = getattr(config, f.name)
+        if f.name.endswith("_keys") and isinstance(value, tuple):
+            keys.update(str(item) for item in value)
+        elif f.name.endswith("_key") and isinstance(value, str):
+            keys.add(value)
+        elif f.name == "operation_flags":  # tuple of (key, value, mode)
+            keys.update(str(flag[0]) for flag in value)
+        elif f.name == "temp_locked_when" and value:  # (key, value)
+            keys.add(str(value[0]))
+    return keys
+
+
+def referenced_keys(spec: CategorySpec) -> frozenset[str]:
+    """Every cloud status key the category already uses, for any purpose.
+
+    The union of what descriptors read or command, what their gates and the category's state
+    machine and write guard test, what a native config binds, and what the snapshot trigger
+    watches. Virtual keys (``@state``, ``@staged:…``) are dropped — they are computed, not
+    reported. This is what the diagnostic fallback subtracts from an appliance's reported
+    keys to find the ones the integration models nothing for yet.
+    """
+    keys: set[str] = set()
+    for descriptors in (
+        spec.sensors,
+        spec.binary_sensors,
+        spec.switches,
+        spec.selects,
+        spec.numbers,
+        spec.buttons,
+    ):
+        for descriptor in descriptors:
+            keys.add(descriptor.key)
+            keys.update(descriptor.gates.keys())
+            for extra in ("command_key", "summary_key"):
+                value = getattr(descriptor, extra, None)
+                if isinstance(value, str):
+                    keys.add(value)
+            keys.update(_TRANSFORM_COMPANION_KEYS.get(getattr(descriptor, "transform", None), ()))
+    for config in (spec.light, spec.water_heater, spec.climate, spec.oven, spec.dishwasher):
+        if config is not None:
+            keys |= _config_keys(config)
+    for rule in spec.states:
+        keys |= set(rule.when.keys())
+    for block in spec.guard:
+        keys |= set(block.when.keys())
+    if spec.snapshot_after is not None:
+        keys.add(spec.snapshot_after.key)
+    return frozenset(key for key in keys if not key.startswith("@"))

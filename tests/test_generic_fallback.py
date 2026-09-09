@@ -147,3 +147,46 @@ async def test_an_oversized_value_does_not_break_the_update(
 
     assert hass.states.get(blob).state == "unknown"
     assert hass.states.get(temp).state == "4"
+
+
+def test_referenced_keys_spans_descriptors_gates_states_and_transforms() -> None:
+    """Every purpose a category uses a key for counts as mapped; virtual keys never do."""
+    from custom_components.holabrain.registry import CATEGORIES, referenced_keys
+
+    keys = referenced_keys(CATEGORIES["0xE1"])
+
+    assert "power" in keys  # descriptor / state machine / write guard
+    assert "doorstatus" in keys  # referenced only by the write guard
+    assert "remainTimeH" in keys  # the high byte a transform reads beside remainTimeL
+    assert "@state" not in keys  # computed, not a reported cloud key
+    # A real lifetime counter the status frame carries but nothing models yet: exactly what
+    # the diagnostic fallback exists to surface, so it must NOT count as already-mapped.
+    assert "totalwashTimes" not in keys
+
+
+async def test_an_unmapped_key_on_a_modelled_appliance_is_offered_as_diagnostic(
+    hass: HomeAssistant, setup_integration, cloud: FakeCloud
+) -> None:
+    """A key a modelled appliance reports but the category ignores becomes evidence.
+
+    Same treatment as an unmodelled appliance's keys — diagnostic, disabled, read-only —
+    because the reasoning is the same: the integration models nothing for it yet, so it is
+    offered rather than presented, and a user enabling it is telling us it is worth mapping.
+    """
+    from tests.conftest import DISHWASHER_CODE
+
+    cloud.states[DISHWASHER_CODE]["mysteryField"] = "7"
+
+    assert await setup_integration()
+    registry = er.async_get(hass)
+
+    entity_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{DISHWASHER_CODE}_mysteryField"
+    )
+    assert entity_id is not None
+    entry = registry.async_get(entity_id)
+    assert entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert entry.entity_category is EntityCategory.DIAGNOSTIC
+
+    # A key the category already uses gets no duplicate diagnostic sensor.
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{DISHWASHER_CODE}_power") is None

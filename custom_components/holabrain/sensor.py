@@ -13,7 +13,7 @@ from . import HolabrainConfigEntry
 from .aiodollin import DeviceState
 from .consumption import build_consumption_entities
 from .entity import HolabrainEntity
-from .generic import build_generic_entities
+from .generic import build_generic_entities, build_unmapped_entities
 from .helpers import async_add_with_discovery, build_entities
 from .registry import (
     TRANSFORM_OVEN_STATUS,
@@ -41,6 +41,7 @@ async def async_setup_entry(
             build_entities(coordinator, "sensors", HolabrainSensor, seen)
             + build_consumption_entities(coordinator, seen)
             + build_generic_entities(coordinator, seen)
+            + build_unmapped_entities(coordinator, seen)
         ),
     )
 
