@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-09
+
+### Added
+
+- **A modelled appliance now surfaces the status keys the integration does not map yet**, as
+  diagnostic, disabled-by-default sensors — the same treatment an unmodelled appliance's keys
+  already get. Until now this fallback ran only for appliances with no category at all, so a
+  field a modelled appliance reports but no descriptor, gate, state rule, write guard, native
+  config or snapshot trigger touches was simply invisible. A user enabling one is exactly the
+  evidence needed to model it. Raw lifetime counters served by the consumption sensors stay
+  hidden (their scale is undocumented and they would inflate long-term statistics).
+
+## [0.18.0] - 2026-09-09
+
+### Added
+
+- **The session is now prolonged in place before its token expires**, using the cloud's
+  `token/extend` endpoint instead of a full re-login. A re-login mints a new session and so
+  signs the vendor's mobile app out; extending renews the *same* session, so staying
+  authenticated no longer costs the app its login. This runs on the integration's own
+  initiative only in exclusive mode (or whenever a person forces a refresh) — cooperative
+  mode still never spends an account request unprompted — and fires roughly once per token
+  lifetime, not every poll. Exposed on the client as `async_extend_token()`.
+
 ## [0.17.1] - 2026-08-15
 
 ### Fixed

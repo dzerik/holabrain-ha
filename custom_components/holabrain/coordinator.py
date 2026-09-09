@@ -131,6 +131,11 @@ CAPABILITY_SAVE_DELAY = 30
 # has to be able to see.
 POLL_FAILURE_GRACE = 2
 
+# Prolong the session this long before its token expires, so a scheduled poll never trips the
+# expiry-and-relogin path (a relogin evicts the mobile app; `token/extend` does not). Tokens
+# live about a day, so at a 60 s poll this fires roughly once per token, not every cycle.
+TOKEN_EXTEND_MARGIN_SECONDS = 3600
+
 # Repair issue raised for an appliance category the integration does not model yet.
 ISSUE_UNSUPPORTED = "unsupported_category"
 UNSUPPORTED_HELP_URL = "https://github.com/dzerik/holabrain-ha/issues"
@@ -410,6 +415,25 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
             "account token refreshed by request for entry %s", self.config_entry.entry_id
         )
 
+    async def _async_maybe_extend_token(self, explicit: bool) -> None:
+        """Prolong the session before it expires, so the poll never trips the expiry path.
+
+        Extending is an account request, so cooperative mode must not spend one on its own
+        initiative — it runs only in exclusive mode or when the user forced this poll. It
+        keeps the same session alive (unlike a relogin, which would evict the mobile app), so
+        it is the gentle way to stay authenticated. Best-effort: a failure is swallowed and
+        the poll's own retry still handles a token that turns out unusable.
+        """
+        if not (explicit or self.mode == MODE_EXCLUSIVE):
+            return
+        remaining = self._client.token_seconds_remaining()
+        if remaining is None or remaining > TOKEN_EXTEND_MARGIN_SECONDS:
+            return
+        try:
+            await self._client.async_extend_token()
+        except DollinError as err:
+            _LOGGER.debug("pre-poll token extend failed, continuing: %s", err)
+
     async def _async_update_data(self) -> dict[str, DeviceState]:
         """Refresh device status.
 
@@ -445,6 +469,8 @@ class HolabrainCoordinator(DataUpdateCoordinator[dict[str, DeviceState]]):
         # One snapshot settles every pending trigger; clear it before the request so a
         # failure does not leave the flag latched into a poll on every tick.
         self._snapshot_due = False
+
+        await self._async_maybe_extend_token(explicit)
 
         states: dict[str, DeviceState] = dict(self.data or {})
         # Drop states of appliances that left the account so stale values cannot linger.
