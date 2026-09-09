@@ -48,6 +48,14 @@ class DollinClient:
         """Discard the current session and log in again. Claims the account's one session."""
         return await self._auth.async_refresh_token()
 
+    async def async_extend_token(self) -> str:
+        """Prolong the current session in place, without a re-login (keeps the mobile app's)."""
+        return await self._auth.async_extend_token()
+
+    def token_seconds_remaining(self, now: float | None = None) -> float | None:
+        """Seconds until the current token expires, or None if it cannot be read."""
+        return self._auth.token_seconds_remaining(now)
+
     @classmethod
     def create(
         cls,

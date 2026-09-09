@@ -24,12 +24,15 @@ Two consequences shape this class:
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..const import ENCRYPT_KEY, EP_LOGIN
+from ..const import ENCRYPT_KEY, EP_LOGIN, EP_TOKEN_EXTEND
 from ..exceptions import (
     AuthError,
     CredentialsRejectedError,
@@ -62,6 +65,30 @@ EVICTION_FORGET_SECONDS = 1800.0
 # reclaiming the session. Past this many expiries inside EVICTION_FORGET_SECONDS the branch
 # stops trusting its own reading and falls back to the cool-down.
 EXPIRY_RELOGIN_LIMIT = 5
+
+
+def _jwt_expiry(token: str | None) -> float | None:
+    """Read the `exp` claim (epoch seconds) from a JWT access token, or None.
+
+    The access token is a JWT carried behind a short region prefix (`eu_A_<header>.<payload>.
+    <sig>`); the prefix has no dots, so splitting on "." isolates the payload regardless. The
+    signature is not verified — this only reads the self-declared expiry to decide when to
+    prolong the session, and a token the cloud would reject is still caught by the request
+    retry path. Any malformed token yields None (unknown expiry), never an exception.
+    """
+    if not token:
+        return None
+    parts = token.split(".")
+    if len(parts) < 2:
+        return None
+    payload = parts[1]
+    payload += "=" * (-len(payload) % 4)
+    try:
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except (ValueError, binascii.Error):
+        return None
+    exp = claims.get("exp") if isinstance(claims, dict) else None
+    return float(exp) if isinstance(exp, (int, float)) and not isinstance(exp, bool) else None
 
 
 class AuthManager:
@@ -188,6 +215,45 @@ class AuthManager:
         self._expiry_window_start = None
         self._expiries_in_window = 0
         return await self._async_relogin()
+
+    def token_seconds_remaining(self, now: float | None = None) -> float | None:
+        """Seconds until the current token's self-declared expiry, or None if unreadable.
+
+        Wall-clock, not the monotonic `_clock` used for cool-downs: the JWT `exp` is an epoch
+        timestamp, so it must be compared against epoch time. Returns None when there is no
+        token or its expiry cannot be parsed — the caller then simply does not pre-empt.
+        """
+        expiry = _jwt_expiry(self._token)
+        if expiry is None:
+            return None
+        return expiry - (now if now is not None else time.time())
+
+    async def async_extend_token(self) -> str:
+        """Prolong the current session in place instead of logging in again.
+
+        A fresh login mints a new session and so evicts the mobile app; `token/extend` renews
+        the *same* session, which is why it is the gentle way to stay authenticated and the
+        one safe to run pre-emptively. It needs a live token to sign with, so it cannot rescue
+        an already-expired one — that is `_async_relogin`'s job, and this falls back to it if
+        the cloud returns nothing usable. The takeover and expiry counters are left untouched:
+        prolonging a healthy session is neither a fight nor an expiry.
+        """
+        data = await self.oem(EP_TOKEN_EXTEND, {})
+        info = data.get("data") if isinstance(data.get("data"), dict) else {}
+        token = (info or {}).get("accessToken")
+        if not token:
+            return await self._async_relogin()
+        self._token = str(token)
+        session = await self._store.load()
+        await self._store.save(
+            Session(
+                access_token=self._token,
+                account=self._account,
+                region=self._transport.region,
+                uid=session.uid if session else "",
+            )
+        )
+        return self._token
 
     async def _async_relogin(self) -> str:
         """Drop the current session and mint a new one.

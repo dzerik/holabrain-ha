@@ -201,3 +201,67 @@ async def test_a_failed_relogin_does_not_leave_a_dead_token_behind():
         await auth.oem("/v1/thing")
 
     assert await store.load() is None
+
+
+def _jwt(exp):
+    """Build a region-prefixed access token whose payload carries the given `exp` claim."""
+    import base64
+    import json
+
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).rstrip(b"=").decode()
+    return f"eu_A_header.{payload}.signature"
+
+
+@pytest.mark.asyncio
+async def test_extend_prolongs_session_in_place_without_relogin():
+    # The extend response carries a fresh token; the session is renewed with no login call.
+    transport = FakeTransport(oem=[{"code": 0, "data": {"accessToken": "EXT"}}])
+    store = InMemoryTokenStore(Session(access_token="OLD", account="a@b.c", uid="42"))
+    auth = AuthManager(transport, store, account="a@b.c", password="pw")
+
+    token = await auth.async_extend_token()
+
+    assert token == "EXT"
+    # Exactly one request — the extend itself — signed with the existing token, no re-login.
+    assert len(transport.oem_calls) == 1
+    assert transport.oem_calls[0][0].endswith("/token/extend")
+    assert transport.oem_calls[0][2] == "OLD"
+    saved = await store.load()
+    assert saved and saved.access_token == "EXT" and saved.uid == "42"
+
+
+@pytest.mark.asyncio
+async def test_extend_falls_back_to_relogin_when_no_token_returned():
+    # Extend answers without an accessToken → a full re-login mints a new session instead.
+    transport = FakeTransport(
+        oem=[
+            {"code": 0, "data": {}},  # extend: nothing usable
+            {"code": 0, "data": {"accessToken": "FRESH", "uid": "7"}},  # login
+        ]
+    )
+    store = InMemoryTokenStore(Session(access_token="OLD"))
+    auth = AuthManager(transport, store, account="a@b.c", password="pw")
+
+    token = await auth.async_extend_token()
+
+    assert token == "FRESH"
+    saved = await store.load()
+    assert saved and saved.access_token == "FRESH"
+
+
+@pytest.mark.asyncio
+async def test_token_seconds_remaining_reads_jwt_exp():
+    transport = FakeTransport()
+    auth = AuthManager(transport, InMemoryTokenStore(Session(access_token=_jwt(1000))))
+    await auth.async_get_token()  # load the token into the manager
+
+    assert auth.token_seconds_remaining(now=400) == pytest.approx(600)
+
+
+@pytest.mark.asyncio
+async def test_token_seconds_remaining_is_none_for_an_unreadable_token():
+    transport = FakeTransport()
+    auth = AuthManager(transport, InMemoryTokenStore(Session(access_token="not-a-jwt")))
+    await auth.async_get_token()
+
+    assert auth.token_seconds_remaining(now=400) is None

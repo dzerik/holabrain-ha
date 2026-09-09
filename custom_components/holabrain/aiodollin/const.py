@@ -28,6 +28,7 @@ DEFAULT_REGION: Final = "eu"
 # ---- Endpoints ------------------------------------------------------------------------
 # Legacy `/v1/*` endpoints use the OEM signature (sign + accessToken headers).
 EP_LOGIN: Final = "/v1/user/login/new"
+EP_TOKEN_EXTEND: Final = "/v1/user/token/extend"
 EP_AREA_GET: Final = "/v1/user/area/get"
 EP_HOME_INDEX: Final = "/v1/appliance/user/home/index?order=1"
 EP_CERT_CREATE: Final = "/v1/certificate/create/app/cert"

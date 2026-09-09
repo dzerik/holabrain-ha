@@ -634,3 +634,48 @@ async def test_a_network_failure_during_manual_refresh_does_not_ask_to_sign_in_a
     await hass.async_block_till_done()
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert not any(flow["context"].get("source") == "reauth" for flow in flows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mode", "explicit", "should_extend"),
+    [
+        ("exclusive", False, True),   # our own initiative is allowed in exclusive mode
+        ("cooperative", False, False),  # cooperative must not spend an account request unprompted
+        ("cooperative", True, True),   # ...unless the user forced this poll
+    ],
+)
+async def test_pre_poll_token_extend_respects_mode(
+    make_coordinator, monkeypatch, mode: str, explicit: bool, should_extend: bool
+) -> None:
+    """A near-expiry token is prolonged before a poll only when spending a request is allowed."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from custom_components.holabrain.coordinator import HolabrainCoordinator
+
+    coordinator = make_coordinator()
+    monkeypatch.setattr(HolabrainCoordinator, "mode", property(lambda self: mode))
+    # A token close enough to expiry that the margin is crossed.
+    coordinator._client.token_seconds_remaining = MagicMock(return_value=60)
+    coordinator._client.async_extend_token = AsyncMock(return_value="EXT")
+
+    await coordinator._async_maybe_extend_token(explicit)
+
+    assert coordinator._client.async_extend_token.called is should_extend
+
+
+@pytest.mark.asyncio
+async def test_pre_poll_token_extend_skips_a_fresh_token(make_coordinator, monkeypatch) -> None:
+    """A token with plenty of life left is not prolonged — extend fires roughly once per token."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from custom_components.holabrain.coordinator import HolabrainCoordinator
+
+    coordinator = make_coordinator()
+    monkeypatch.setattr(HolabrainCoordinator, "mode", property(lambda self: "exclusive"))
+    coordinator._client.token_seconds_remaining = MagicMock(return_value=86400)
+    coordinator._client.async_extend_token = AsyncMock(return_value="EXT")
+
+    await coordinator._async_maybe_extend_token(False)
+
+    assert not coordinator._client.async_extend_token.called
